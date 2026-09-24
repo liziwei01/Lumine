@@ -28,7 +28,7 @@ struct ThemeConfiguration: Codable, Hashable {
     var cardDirection = "diagonal"
     var panelBorder = "#68509A"
     var cardBorder = "#745D9E"
-    var selection = "#637CFF"
+    var selection = "#6A85F8"
     var text = "#FAF8FF"
     var muted = "#C9C4DC"
     var blue = "#7895FF"
@@ -103,6 +103,7 @@ struct PreferencesData: Codable {
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         theme = try values.decodeIfPresent(ThemeConfiguration.self, forKey: .theme) ?? .reference
+        if theme.selection.uppercased() == "#637CFF" { theme.selection = ThemeConfiguration.reference.selection }
         allowDragging = try values.decodeIfPresent(Bool.self, forKey: .allowDragging) ?? false
         panelPositions = try values.decodeIfPresent([String: PanelPosition].self, forKey: .panelPositions) ?? [:]
         cpuSource = try values.decodeIfPresent(String.self, forKey: .cpuSource) ?? "overall"

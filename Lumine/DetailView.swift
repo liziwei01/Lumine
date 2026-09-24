@@ -8,6 +8,7 @@ struct DetailView: View {
     @ObservedObject private var diskSupplement = DiskSupplementStore.shared
     @ObservedObject private var speedTest = SpeedTestStore.shared
     @State private var confirmEmptyTrash = false
+    @State private var pendingTrashPath: String?
     @State private var confirmProcessClose = false
     @State private var pendingProcess: ProcessUsage?
     @State private var processNotice: String?
@@ -45,6 +46,8 @@ struct DetailView: View {
         .environment(\.locale, L10n.locale)
         .onChange(of: preferences.values.diskSource) { _ in
             if kind == .disk {
+                pendingTrashPath = nil
+                confirmEmptyTrash = false
                 let path = store.selectedVolume.id == "startup" ? "/" : store.selectedVolume.id
                 configureDiskCategories(path: path)
                 refreshDiskSupplement(path: path)
@@ -76,9 +79,11 @@ struct DetailView: View {
         }
         .alert(L10n.tr("清空废纸篓？"), isPresented: $confirmEmptyTrash) {
             Button(L10n.tr("清空"), role: .destructive) {
-                diskSupplement.emptyTrash(path: store.selectedVolume.id == "startup" ? "/" : store.selectedVolume.id)
+                let path = selectedDiskPath
+                if pendingTrashPath == path { diskSupplement.emptyTrash(path: path) }
+                pendingTrashPath = nil
             }
-            Button(L10n.tr("取消"), role: .cancel) {}
+            Button(L10n.tr("取消"), role: .cancel) { pendingTrashPath = nil }
         } message: {
             Text(L10n.tr("所选卷当前用户废纸篓中的文件将被永久删除。"))
         }
@@ -99,6 +104,20 @@ struct DetailView: View {
     }
 
     private func shows(_ widget: Widget) -> Bool { preferences.values.shows(widget) }
+
+    private var selectedDiskPath: String {
+        store.selectedVolume.id == "startup" ? "/" : store.selectedVolume.id
+    }
+
+    private var trashUsageDescription: String {
+        guard store.selectedVolumeAvailable else { return L10n.tr("不可用") }
+        if diskSupplement.isLoading && !diskSupplement.trashAvailable { return L10n.tr("正在计算…") }
+        guard diskSupplement.trashAvailable else { return L10n.tr("无法读取废纸篓") }
+        let size = MetricFormat.diskBytes(Double(diskSupplement.trash.bytes))
+        if diskSupplement.trash.usesCachedBytes { return L10n.tr("上次读数：\(size)") }
+        if !diskSupplement.trash.isComplete { return L10n.tr("至少已读取：\(size)") }
+        return L10n.tr("已使用：\(size)（提醒阈值 2 GB）")
+    }
 
     private func configureDiskCategories(path: String) {
         diskCategories.configure(path: path,
@@ -206,22 +225,23 @@ struct DetailView: View {
                             }
                         }
                         .frame(height: 4)
-                        Text(store.selectedVolumeAvailable && diskSupplement.trashAvailable
-                             ? L10n.tr("已使用：\(MetricFormat.diskBytes(Double(diskSupplement.trash.bytes)))（提醒阈值 2 GB）")
-                             : L10n.tr("不可用"))
-                            .font(.system(size: 11)).foregroundStyle(Palette.muted)
+                        Text(trashUsageDescription)
+                            .font(.system(size: 11))
+                            .foregroundStyle(diskSupplement.trashRootReadable ? Palette.muted : Palette.yellow)
+                            .help(diskSupplement.trashRootReadable ? "" : L10n.tr("请检查 Lumine 的完全磁盘访问权限。"))
                         HStack {
                             if let notice = diskSupplement.trashNotice {
                                 Text(notice).font(.system(size: 10)).foregroundStyle(Palette.muted).lineLimit(1)
                             }
                             Spacer(minLength: 0)
                             Button(diskSupplement.isEmptyingTrash ? L10n.tr("正在清空…") : L10n.tr("释放")) {
+                                pendingTrashPath = selectedDiskPath
                                 confirmEmptyTrash = true
                             }
                             .buttonStyle(.plain)
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Palette.cyan)
-                            .disabled(diskSupplement.isEmptyingTrash || diskSupplement.isLoading || !store.selectedVolumeAvailable || !diskSupplement.trashAvailable || diskSupplement.trash.bytes == 0)
+                            .disabled(diskSupplement.isEmptyingTrash || diskSupplement.isLoading || !store.selectedVolumeAvailable || !diskSupplement.trashRootReadable || diskSupplement.trash.itemCount == 0)
                         }
                     }
                 }

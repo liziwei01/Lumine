@@ -55,8 +55,11 @@ struct DiskDiagnostics {
 
 struct TrashUsage {
     var bytes: UInt64 = 0
+    var itemCount = 0
     var unreadable = 0
+    var isAccessible = false
     var isComplete = false
+    var usesCachedBytes = false
 }
 
 struct TrashEmptyResult {
@@ -97,7 +100,20 @@ enum DiskSupplementCollector {
     static func trash(path: String, cancelled: () -> Bool) -> TrashUsage {
         let trashURL = trashURL(path: path)
         var result = TrashUsage()
-        if !FileManager.default.fileExists(atPath: trashURL.path) {
+        let contents: [URL]
+        do {
+            contents = try FileManager.default.contentsOfDirectory(at: trashURL, includingPropertiesForKeys: nil)
+        } catch {
+            let failure = error as NSError
+            if failure.domain == NSCocoaErrorDomain && failure.code == NSFileReadNoSuchFileError {
+                result.isAccessible = true
+                result.isComplete = true
+            }
+            return result
+        }
+        result.isAccessible = true
+        result.itemCount = contents.count
+        if contents.isEmpty {
             result.isComplete = true
             return result
         }
@@ -151,6 +167,7 @@ final class DiskSupplementStore: ObservableObject {
     @Published private(set) var diagnostics = DiskDiagnostics()
     @Published private(set) var trash = TrashUsage()
     @Published private(set) var trashAvailable = false
+    @Published private(set) var trashRootReadable = false
     @Published private(set) var isLoading = false
     @Published private(set) var isEmptyingTrash = false
     @Published private var trashOutcome: TrashEmptyResult?
@@ -182,6 +199,7 @@ final class DiskSupplementStore: ObservableObject {
             diagnostics = DiskDiagnostics()
             trash = TrashUsage()
             trashAvailable = false
+            trashRootReadable = false
             diagnosticLastSuccess = [:]
             trashLastSuccess = nil
         }
@@ -199,19 +217,7 @@ final class DiskSupplementStore: ObservableObject {
                 guard let self, self.generation == currentGeneration else { return }
                 let now = ProcessInfo.processInfo.systemUptime
                 if includeDiagnostics { self.diagnostics = self.retainingDiagnostics(diagnostics, now: now) }
-                if includeTrash {
-                    if trash.isComplete {
-                        self.trash = trash
-                        self.trashAvailable = true
-                        self.trashLastSuccess = now
-                    } else if let completed = self.trashLastSuccess,
-                              now - completed <= TimeInterval(PreferencesStore.shared.values.failedSampleRetentionSeconds) {
-                        self.trashAvailable = true
-                    } else {
-                        self.trash = TrashUsage()
-                        self.trashAvailable = false
-                    }
-                }
+                if includeTrash { self.updateTrash(trash, now: now) }
                 self.isLoading = false
                 self.lastUpdate = now
                 self.task = nil
@@ -233,6 +239,7 @@ final class DiskSupplementStore: ObservableObject {
         diagnostics = DiskDiagnostics()
         trash = TrashUsage()
         trashAvailable = false
+        trashRootReadable = false
         diagnosticLastSuccess = [:]
         trashLastSuccess = nil
         lastUpdate = nil
@@ -260,6 +267,30 @@ final class DiskSupplementStore: ObservableObject {
         if collectedTrash, let completed = trashLastSuccess, now - completed > lifetime {
             trash = TrashUsage()
             trashAvailable = false
+            trashRootReadable = false
+        }
+    }
+
+    private func updateTrash(_ current: TrashUsage, now: TimeInterval) {
+        trashRootReadable = current.isAccessible
+        if current.isComplete {
+            trash = current
+            trashAvailable = true
+            trashLastSuccess = now
+        } else if let completed = trashLastSuccess,
+                  now - completed <= TimeInterval(PreferencesStore.shared.values.failedSampleRetentionSeconds) {
+            trash.itemCount = current.itemCount
+            trash.unreadable = current.unreadable
+            trash.isAccessible = current.isAccessible
+            trash.isComplete = false
+            trash.usesCachedBytes = true
+            trashAvailable = true
+        } else if current.isAccessible {
+            trash = current
+            trashAvailable = true
+        } else {
+            trash = TrashUsage()
+            trashAvailable = false
         }
     }
 
@@ -285,7 +316,8 @@ final class DiskSupplementStore: ObservableObject {
     }
 
     func emptyTrash(path: String) {
-        guard !isEmptyingTrash else { return }
+        guard !isEmptyingTrash, !isLoading, rootPath == path,
+              trashRootReadable, trash.itemCount > 0 else { return }
         isEmptyingTrash = true
         trashOutcome = nil
         let url = DiskSupplementCollector.trashURL(path: path)
@@ -296,11 +328,9 @@ final class DiskSupplementStore: ObservableObject {
                 guard let self else { return }
                 self.isEmptyingTrash = false
                 if self.rootPath == path {
-                    self.trash = current
-                    self.trashAvailable = current.isComplete
-                    self.trashLastSuccess = current.isComplete ? ProcessInfo.processInfo.systemUptime : nil
+                    self.updateTrash(current, now: ProcessInfo.processInfo.systemUptime)
+                    self.trashOutcome = outcome
                 }
-                self.trashOutcome = outcome
             }
         }
     }

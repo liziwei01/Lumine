@@ -320,3 +320,7 @@
 "打开登录项设置" = "Open Login Items settings";
 "macOS 无法找到此 App 的登录项。" = "macOS could not find this app's login item.";
 "更改登录项失败：{0}" = "Could not change the login item: {0}";
+"无法读取废纸篓" = "Cannot read Trash";
+"上次读数：{0}" = "Last reading: {0}";
+"至少已读取：{0}" = "At least {0} read";
+"请检查 Lumine 的完全磁盘访问权限。" = "Check Lumine's Full Disk Access permission.";
