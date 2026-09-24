@@ -127,8 +127,16 @@ struct MetricCard<Content: View>: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(LinearGradient(colors: [first, last], startPoint: cardPoints.0, endPoint: cardPoints.1))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(selected ? Color(hex: theme.selection) : Color(hex: theme.cardBorder).opacity(0.45), lineWidth: selected ? 2 : 0.6)
+                        ZStack {
+                            if selected {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .strokeBorder(Color(hex: theme.selection).opacity(0.55), lineWidth: 5)
+                                    .blur(radius: 3)
+                            }
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(selected ? Color(hex: theme.selection) : Color(hex: theme.cardBorder).opacity(0.45), lineWidth: selected ? 2.5 : 0.6)
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
             }
     }

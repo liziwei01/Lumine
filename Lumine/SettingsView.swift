@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import SwiftUI
 
 struct WindowDragHandle: NSViewRepresentable {
@@ -49,6 +50,8 @@ struct SettingsView: View {
     @State private var selectedWidgetGroup = 0
     @State private var appearancePage = 0
     @State private var dataPage = 0
+    @State private var loginItemStatus: SMAppService.Status = .notRegistered
+    @State private var loginItemError: String?
 
     private var widgetGroups: [(String, [(Widget, String)])] { [
         (L10n.tr("总览"), [(.health, L10n.tr("Mac 健康度")), (.overviewDisk, L10n.tr("磁盘")), (.overviewMemory, L10n.tr("内存")), (.overviewBattery, L10n.tr("电池")), (.overviewCPU, "CPU"), (.overviewNetwork, L10n.tr("网络")), (.overviewDevices, L10n.tr("已连接的设备"))]),
@@ -70,41 +73,105 @@ struct SettingsView: View {
                 .tabItem { Label(L10n.tr("组件"), systemImage: "square.grid.2x2") }
             dataTab
                 .tabItem { Label(L10n.tr("数据来源"), systemImage: "cpu") }
-            languageTab
-                .tabItem { Label(L10n.tr("语言"), systemImage: "globe") }
+            generalTab
+                .tabItem { Label(L10n.tr("通用"), systemImage: "gearshape") }
         }
         .padding(16)
         .frame(minWidth: 630, minHeight: 530)
         .environment(\.locale, L10n.locale)
+        .onAppear(perform: refreshLoginItemStatus)
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            refreshLoginItemStatus()
+        }
     }
 
-    private var languageTab: some View {
+    private var generalTab: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(L10n.tr("界面语言")).font(.system(size: 17, weight: .bold))
-            Text(L10n.tr("选择“跟随系统”时，Lumine 使用 macOS 首选语言列表中第一个受支持的语言。切换后立即生效。"))
-                .font(.system(size: 12)).foregroundStyle(.secondary)
-            Picker(L10n.tr("语言"), selection: Binding(
-                get: { preferences.values.language },
-                set: {
-                    preferences.values.language = $0
-                    resetPositions()
+            Text(L10n.tr("通用设置")).font(.system(size: 17, weight: .bold))
+            GroupBox(L10n.tr("启动")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle(L10n.tr("登录时启动 Lumine"), isOn: Binding(
+                        get: { loginItemIsRegistered },
+                        set: changeLoginItem
+                    ))
+                    Text(L10n.tr("请在固定安装位置运行 Lumine 后启用；移动 App 后需重新设置。"))
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                    if loginItemStatus == .requiresApproval {
+                        HStack {
+                            Text(L10n.tr("登录项已登记，需要在 macOS 系统设置中批准。"))
+                                .font(.system(size: 12)).foregroundStyle(.orange)
+                            Spacer()
+                            Button(L10n.tr("打开登录项设置")) {
+                                SMAppService.openSystemSettingsLoginItems()
+                            }
+                        }
+                    } else if loginItemStatus == .notFound {
+                        Text(L10n.tr("macOS 无法找到此 App 的登录项。"))
+                            .font(.system(size: 12)).foregroundStyle(.orange)
+                    }
+                    if let loginItemError {
+                        Text(loginItemError)
+                            .font(.system(size: 12)).foregroundStyle(.red)
+                            .textSelection(.enabled)
+                    }
                 }
-            )) {
-                Text(L10n.tr("跟随系统")).tag("system")
-                Text(verbatim: "简体中文").tag("zh-Hans")
-                Text(verbatim: "繁體中文").tag("zh-Hant")
-                Text(verbatim: "English").tag("en")
-                Text(verbatim: "日本語").tag("ja")
-                Text(verbatim: "Русский").tag("ru")
-                Text(verbatim: "한국어").tag("ko")
-                Text(verbatim: "Español").tag("es")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(5)
             }
-            .frame(maxWidth: 360)
-            Text(L10n.tr("当前语言：\(L10n.displayName(for: L10n.language))"))
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+            GroupBox(L10n.tr("界面语言")) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(L10n.tr("选择“跟随系统”时，Lumine 使用 macOS 首选语言列表中第一个受支持的语言。切换后立即生效。"))
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                    Picker(L10n.tr("语言"), selection: Binding(
+                        get: { preferences.values.language },
+                        set: {
+                            preferences.values.language = $0
+                            resetPositions()
+                        }
+                    )) {
+                        Text(L10n.tr("跟随系统")).tag("system")
+                        Text(verbatim: "简体中文").tag("zh-Hans")
+                        Text(verbatim: "繁體中文").tag("zh-Hant")
+                        Text(verbatim: "English").tag("en")
+                        Text(verbatim: "日本語").tag("ja")
+                        Text(verbatim: "Русский").tag("ru")
+                        Text(verbatim: "한국어").tag("ko")
+                        Text(verbatim: "Español").tag("es")
+                    }
+                    .frame(maxWidth: 360)
+                    Text(L10n.tr("当前语言：\(L10n.displayName(for: L10n.language))"))
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(5)
+            }
             Spacer()
         }
         .padding(18)
+    }
+
+    private var loginItemIsRegistered: Bool {
+        loginItemStatus == .enabled || loginItemStatus == .requiresApproval
+    }
+
+    private func refreshLoginItemStatus() {
+        let status = SMAppService.mainApp.status
+        if status != loginItemStatus { loginItemError = nil }
+        loginItemStatus = status
+    }
+
+    private func changeLoginItem(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            loginItemError = nil
+        } catch {
+            loginItemError = L10n.tr("更改登录项失败：\(error.localizedDescription)")
+        }
+        refreshLoginItemStatus()
     }
 
     private var componentsTab: some View {

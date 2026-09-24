@@ -311,3 +311,12 @@
 "30 分钟" = "30 minutes";
 "当前没有可见进程。" = "No visible processes.";
 "SMC 是未公开的硬件传感器接口；读取失败会先保留上次温度，超过保留时间后显示不可用。" = "SMC is an undocumented hardware sensor interface. A failed read keeps the last temperature until the retention period expires.";
+"通用" = "General";
+"通用设置" = "General settings";
+"启动" = "Startup";
+"登录时启动 Lumine" = "Launch Lumine at login";
+"请在固定安装位置运行 Lumine 后启用；移动 App 后需重新设置。" = "Enable this after running Lumine from its permanent location. Set it again if you move the app.";
+"登录项已登记，需要在 macOS 系统设置中批准。" = "The login item is registered but needs approval in macOS System Settings.";
+"打开登录项设置" = "Open Login Items settings";
+"macOS 无法找到此 App 的登录项。" = "macOS could not find this app's login item.";
+"更改登录项失败：{0}" = "Could not change the login item: {0}";
