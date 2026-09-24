@@ -1,0 +1,85 @@
+# Lumine 架构设计
+
+## 目标与范围
+
+Lumine 是一个原生 macOS 菜单栏监控程序。点击菜单栏图标显示系统总览，点击总览卡片在其左侧显示对应详情。界面参照开发者本地截图，采用深紫渐变背景、圆角卡片、亮蓝选中边框、黄/薄荷绿指标强调色和并排浮层布局。参考截图存放在公开 Git 仓库之外。
+
+主体功能是磁盘、内存、电池、CPU、网络及已连接外置存储的监控。第四版按参考菜单恢复三项用户明确触发的操作：清空当前用户的废纸篓、向排行中的进程发送正常退出请求、按按钮测试网速。没有释放内存、杀毒、付费解锁或自动测速功能，也不在界面中使用参考应用的名称或图标。截图仅供开发比对，不打入 App 包。
+
+第二版增加可持久化的界面设置：总览和每个详情面板的独立位置、面板背景与卡片的渐变色、强调色、CPU 使用率来源以及网络接口来源。默认配色从参考截图的背景、卡片和选中边框取样；用户修改后立即预览，且可以恢复默认。总览右下角齿轮只弹出“设置”和“退出”。
+
+第三版恢复参考布局的交互：详情标题不显示关闭按钮；点击同一总览卡片或面板外部收起详情。总览和详情固定排版、不能滚动，面板高度由可见组件决定并限制在当前屏幕内。设置中的“组件”页为总览卡片和各详情子组件提供独立开关。磁盘详情默认显示文件类别、SMART 运行状况、温度与废纸篓用量；先前新增的容量和外置卷卡片默认隐藏，仅在设置中启用。设置和“了解更多”使用独立窗口或浏览器，不改变监控面板布局。
+
+背景采用六点渐变（左上、上中、右上、左下、下中、右下）加偏右上起始、向右下倾斜的低透明度柔光柱。参考截图的背景控制点取样约为 `#281669`、`#38207E`、`#4B2D86`、`#0A0644`、`#040438`、`#3B1E6B`。对无卡片遮挡的设备详情截图取样后，光柱顶部中心约位于面板宽度的 45%，底部约位于 94%，底部渐变暗点约在 39%；中心亮、两侧柔和消失，避免沿左上到右下对角线画出一道硬边。卡片按所在列使用较暗或较亮的一段渐变；选中描边是独立色值。
+
+磁盘、内存和电池详情的圆环共用 `RingChart`：圆环位于预留的 200 pt 方形空间内，色弧实际直径约 190 pt；图表行另留约 12 pt 左侧内边距，确保色弧与面板左边界有约 30 pt 间隔。色弧分为低透明度模糊光晕和清晰实线两层，底环保持暗紫色；电池只绘制一层连续光晕，再叠加 32 段清晰刻度，避免 32 次模糊影响监控程序性能。外观设置可调整圆环光晕强度和模糊范围，强度为零时不绘制光晕。光晕仅属于圆环，不恢复窗口外缘阴影。
+
+第四版的网络卡片同时显示所选接口的当前速率和最近一段时间的收发总量，默认时间窗为 60 分钟，可在设置中调整。历史数据按分钟聚合，保留最近 24 小时并在正常退出前保存；首次启动或刚换接口时只统计实际采到的时间，不能反推启动前的流量。测速由用户点击后经 HTTPS 向 Cloudflare Speedtest 的 `__down` 和 `__up` 端点传输有限量的测试数据，显示上下行 Mbps；关闭网络详情或退出时取消。测速流量也会进入接口总量。测速不在后台自动运行。
+
+废纸篓“释放”仅清空当前用户在所选卷的废纸篓内容，弹出确认，逐项删除并报告失败数；不清理卷上的其他文件。排行“关闭”先核对 PID 对应的命令路径；对图形应用请求 `NSRunningApplication.terminate`，其他进程发送 `SIGTERM`，不使用强制终止信号。进程已变化、无权限和目标是 Lumine 自身时拒绝操作，并在界面反馈。
+
+## 结构
+
+```text
+LumineApp / AppDelegate
+  ├─ NSStatusItem                  菜单栏入口
+  ├─ PanelController               总览和详情 NSPanel 的生命周期与定位
+  ├─ MonitorStore                  定时采样、历史序列、展示模型
+  │    └─ SystemSampler            系统 API 采样与差值计算
+  ├─ PreferencesStore              持久化配色、来源和面板坐标
+  ├─ SMCReader                     尝试读取 CPU 温度传感器
+  └─ SwiftUI Views
+       ├─ OverviewView             总览卡片
+       ├─ DetailView               详情路由
+       └─ Charts / Components      图表、环形图、卡片等
+```
+
+`SystemSampler` 不依赖界面。它读取单次系统快照，CPU 与网络速率由相邻快照的差值计算。`MonitorStore` 在主线程发布原始数值和近 60 次图表样本，并将网络收发差值写入按分钟聚合的历史；界面仅负责呈现。可分别设置面板打开和关闭时的采样间隔，默认 5 秒和 30 秒，修改后立即重排定时器。系统采样在串行后台队列执行，避免主线程等待硬件接口；已有采样未完成时跳过重复触发。进程排行仅在 CPU/内存/电池详情且对应组件可见时、最多每 10 秒运行一次 `ps`，其余时候不启动子进程。光柱作为三段渐变融入六点背景，绘制切片最多 128 条，减少每次刷新产生的绘制指令。
+
+`Localization` 使用 App 包内的 `Localizable.strings`，提供简体中文、繁体中文、英语、日语、俄语、韩语、西班牙语。`PreferencesData.language` 保存 `system` 或明确的语言代码；`system` 根据 macOS 首选语言列表匹配第一个受支持的语言，匹配失败回退简体中文。语言选择更新时，三个 SwiftUI 根视图从 `PreferencesStore` 收到通知并重绘；设置窗口标题和菜单栏提示另由 AppKit 更新。源文案是稳定的简体中文 key；带插值的文案使用位置参数模板，避免不同语言词序受 Swift 插值限制。扫描结果、配置标识、缓存和采样线程只保存与语言无关的数据；呈现时再翻译。日期和数值使用所选语言对应的 Locale。运行时只读包内资源，不调用在线翻译服务；后续可按资源文件继续添加语言。
+
+`DiskCategoryStore` 与详情窗口分离：菜单栏 App 启动后只加载用户 Application Support 目录中的逐卷分类缓存，不启动文件遍历，也不安装定时扫描器。展开磁盘详情和切换所选卷只读取相应缓存。只有用户点击详情中的“重新扫描”才在后台开始遍历；“停止”取消本次扫描。隐藏文件类别组件或退出时取消正在运行的扫描。详情显示最近完成时间和扫描进度。旧版本保存的扫描周期设置不再使用。
+
+扫描过程中保留旧缓存供详情显示，进度只更新扫描状态；只有完整扫描结束才原子写入缓存，取消或失败不会覆盖已有结果。切换卷或退出时取消旧扫描。普通 CPU、内存等监控采样绝不触发全盘遍历。分类规则优先按位置识别桌面、文稿、下载和应用程序，其他可读取文件归入“其他”。统计取文件实际分配大小，遇到无法读取的目录继续扫描并标记结果不完整。启动卷扫描跳过 `/System/Volumes/Data` 这个重复入口和其他挂载卷。APFS 克隆、快照和系统保留空间可能使文件枚举之和与卷占用不相等，界面明确分别呈现两种口径，不伪造“其他”补足差值。
+
+`DiskSupplementStore` 只在磁盘详情打开且对应组件可见时于后台读取系统 `diskutil info -plist` 中的 SMART 字段：`PERCENTAGE_USED` 转为寿命估算 `100 - used`，`TEMPERATURE` 兼容开尔文与摄氏读数，`SMARTStatus` 和 `AVAILABLE_SPARE`/阈值辅助判断状态。缺少键时显示“不可用”，不从 CPU 温度推断磁盘温度。结果缓存一分钟；废纸篓组件可见时按需枚举当前用户（或所选卷）的废纸篓目录，只统计大小。状态文案采用 MacPaw 官方公开阈值：磁盘余量低于 10% 警告、健康度低于 70% 警告、磁盘温度 51–70°C 警告、71°C 起严重。CPU 温度低于 56°C 为白色，56–75°C 黄色，76°C 起红色。参照页面是内容依据，不随 App 分发第三方图片或代码。各“了解更多”按钮打开相应官方网页。
+
+## 数据来源与语义
+
+| 指标 | 来源 | 说明 |
+| --- | --- | --- |
+| CPU 使用率 | `host_statistics(HOST_CPU_LOAD_INFO)`、`host_processor_info(PROCESSOR_CPU_LOAD_INFO)` | 相邻采样 tick 差值；可选总体平均或各逻辑核心。 |
+| 内存 | `host_statistics64(HOST_VM_INFO64)`、`ProcessInfo.physicalMemory` | 活跃、联动、压缩、空闲/非活跃内存；压力以已用物理内存占比近似，不冒充系统内存压力通知。 |
+| 磁盘容量 | `URLResourceValues.volumeAvailableCapacityForImportantUsage`、`volumeTotalCapacity` | 卷的总量和可用量。 |
+| 文件类别 | `FileManager.enumerator`、`totalFileAllocatedSizeKey` | 用户点击后才后台遍历所选卷，逐卷持久化已完成结果；详情打开时只读取缓存和当前进度。 |
+| 磁盘运行状况/温度 | 系统 `diskutil info -plist` SMART 字段 | 仅在磁盘详情打开时读取并缓存；健康百分比是剩余寿命估算，不保证与 CleanMyMac 算法完全一致。 |
+| 废纸篓 | `FileManager.enumerator`、`totalFileAllocatedSizeKey` | 按需统计本用户废纸篓文件分配大小；确认后可逐项删除并报告失败。 |
+| 电池 | `IOPSCopyPowerSourcesInfo`、`AppleSmartBattery` IORegistry | 电量、电源状态、剩余时间、循环次数；健康度由充满容量与设计容量估算。缺失时显示不可用。 |
+| 网络 | `getifaddrs` 的 `if_data` 字节计数、`CWWiFiClient` | 当前活跃接口的上下行速率、最近时间窗收发总量和 Wi-Fi 名称；测速按点击才向 Cloudflare 传输数据。 |
+| CPU 温度 | `AppleSMC` 用户客户端的只读传感器键 | 尝试读取当前机型可用的 CPU 传感器；平均值、最高值或指定传感器可选。接口和键未经 Apple 公共 SDK 保证，失败时显示不可用。 |
+| 外置存储 | `FileManager.mountedVolumeURLs`、卷资源属性 | 只列已挂载的外置卷，不宣称发现全部蓝牙/USB 外设。 |
+| 进程排行 | 系统 `ps` 命令 | 展示当前可见进程的 RSS 和 CPU 百分比；用户点击“关闭”后核对身份并请求正常退出。电池排行以 `%cpu` 作为耗电活动量近似，不能声称是 macOS 的真实逐进程功耗。 |
+
+Apple Silicon 上 CPU 温度没有稳定公开的无特权 API。CleanMyMac 的公开文档确认非 App Store 版本可显示温度，但未公开实现；开源监控工具使用 SMC/HID 传感器。Lumine 只读 SMC，不安装提权 helper。失败时明确显示不可用，不显示虚构温度。电池健康度是容量比例的估算值，与 macOS 设置中的健康状态判断不完全相同。
+
+参考文案与阈值依据：MacPaw 官方的[磁盘空间](https://macpaw.com/support/cleanmymac/knowledgebase/available-disk-space)、[磁盘健康](https://macpaw.com/support/cleanmymac/knowledgebase/disk-health)、[磁盘温度](https://macpaw.com/support/cleanmymac/knowledgebase/disk-temperature)、[内存压力](https://macpaw.com/support/cleanmymac/knowledgebase/ram-pressure)、[电池健康](https://macpaw.com/support/cleanmymac/knowledgebase/battery-health)、[电池温度](https://macpaw.com/support/cleanmymac/knowledgebase/battery-temperature)、[CPU 温度](https://macpaw.com/support/cleanmymac/knowledgebase/cpu-temperature)、[运行时间](https://macpaw.com/support/cleanmymac/knowledgebase/mac-uptime)和[网络安全](https://macpaw.com/support/cleanmymac/knowledgebase/network-connection-security)页面。Lumine 不复用第三方图片或原文段落。“了解更多”按组件主题指向这些官方页面。内存压力百分比是 Lumine 的物理页估算，无法声称与 CleanMyMac 的私有算法相同；总览健康描述也只覆盖本项目实际采集到的指标。
+
+## 窗口与交互
+
+- `LSUIElement` 隐藏 Dock 图标；菜单栏图标单击切换总览。
+- 总览为无标题 `NSPanel`，锚定菜单栏按钮下方并限制在当前屏幕可见区域。
+- 详情是独立的无标题 `NSPanel`，优先放在总览左侧；空间不够时放到右侧或覆盖总览一部分。
+- 设置中的“允许拖动面板”启用后，面板标题行出现拖动区。松开鼠标时按面板类型保存屏幕内位置；显示器布局变化时坐标会被钳制到可见区域。
+- 点击总览卡片切换详情；再次点同一张卡片收起详情。点击两个浮层之外的区域收起两者。
+- 设置页是独立窗口，直接修改主题和来源；恢复默认只恢复主题，不清除监控数据。
+- “退出”调用 `NSApp.terminate`，在终止回调中停止采样定时器、关闭 SMC 连接并移除事件监听；程序没有驻留 helper 或守护进程。
+- 监控面板内容固定排版、禁止滚动；小屏幕优先压缩间距和隐藏用户已关闭的组件。所有按钮有可访问名称。
+- 总览与详情浮层由渐变、细边框和圆角构成，不绘制外缘投影。网络总览卡片的整张卡片可打开网络详情；测速按钮位于卡片右下角，有独立点击区域。
+
+## 安装与本机数据
+
+未沙盒化的发布 App 可直接复制到 `/Applications/Lumine.app`，不需要安装器或常驻 helper。退出菜单栏进程后删除该 App 会移除程序本体。用户设置写入 `~/Library/Preferences/app.lumine.monitor.plist`（由 macOS `UserDefaults` 管理），文件类别缓存和网络流量历史分别写入 `~/Library/Application Support/Lumine/disk-categories.json` 与 `network-traffic.json`；因此删除 App 不等于删除全部数据。完全卸载还需删除上述用户数据，并在系统设置中按需移除“完全磁盘访问权限”记录。调试与分发构建若使用相同 bundle identifier，也共用这些本机数据。
+
+## 工程与验证
+
+工程是无第三方依赖的 Swift / SwiftUI / AppKit Xcode 项目。最低 macOS 13；默认不启用沙盒或请求额外权限。通过 `xcodebuild` 编译、运行 App 并检查实际窗口和采样数值。公开 Git 仓库是外层工作区中的 `lumine/` 子目录；外层保留参考截图、构建产物与个人文件。只发布原创代码与原创图标，不把参考截图或第三方品牌素材放入发布包。

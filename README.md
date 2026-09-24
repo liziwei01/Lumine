@@ -1,0 +1,44 @@
+# Lumine
+
+Lumine 是一个轻量的原生 macOS 菜单栏监控 App。点击菜单栏图标查看系统总览；点击卡片查看磁盘、内存、电池、CPU、网络和外置存储详情。
+
+界面参考了本地截图中的深紫浮层与图表风格。Lumine 的代码、图标和文案均为独立创作，不包含参考应用的品牌素材，也不包含释放内存、防护或付费解锁功能。用户可明确点击清空废纸篓、请求排行进程退出和测试网速。
+
+## 系统要求
+
+- macOS 13 或更新版本
+- Xcode 15 或更新版本（本项目在 Xcode 27 构建验证）
+
+## 构建
+
+```sh
+xcodebuild -project Lumine.xcodeproj -scheme Lumine -configuration Release \
+  -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+codesign --force --sign - --timestamp=none build/Build/Products/Release/Lumine.app
+```
+
+生成的 App 位于 `build/Build/Products/Release/Lumine.app`。也可直接在 Xcode 中打开 `Lumine.xcodeproj` 运行。启动后没有 Dock 图标，请在菜单栏找显示器形状的图标。总览右下角的齿轮菜单只有“设置”和“退出”；退出会停止采样计时器并关闭 SMC 连接，Lumine 没有独立的后台进程。
+
+安装时先从菜单栏退出旧版，再把构建产物 `Lumine.app` 复制到 `/Applications` 即可。删除 `/Applications/Lumine.app` 只移除程序本体。Lumine 还将文件类别缓存和最近网络流量写在 `~/Library/Application Support/Lumine/`，将设置写在 `~/Library/Preferences/app.lumine.monitor.plist`。要完全移除，请先退出 App，再删除 App 与这两个用户数据位置；如曾授予完全磁盘访问权限，可在 macOS 系统设置中移除对应记录。没有额外的后台 helper 或守护进程。
+
+设置页可以改面板六点渐变、斜向柔光柱的颜色与位置、卡片渐变、边框、指标颜色，以及圆环光晕强度和范围，并实时预览。把圆环光晕强度设为 0 即可关闭。开启“允许拖动监控面板”后，用标题栏的拖动手柄移动总览或任一详情；位置会分别保存。数据来源可以选择总体或单个逻辑 CPU 核心、CPU 温度平均值/最高值/指定传感器、网络接口、磁盘卷，以及内存可用量口径。面板打开和关闭时的采集间隔可分别设置，默认 5 秒和 30 秒，修改后立即生效。网络累计流量默认统计最近一小时，可改为 15 分钟至 24 小时。
+
+“语言”设置支持跟随 macOS 首选语言，或手动选择简体中文、繁体中文、英语、日语、俄语、韩语和西班牙语。切换后界面立即更新，选择会保留到下次启动。翻译使用 App 包内的 `Localizable.strings`，运行时无第三方翻译包或联网请求。翻译资源可直接在 `Lumine/*.lproj/Localizable.strings` 中修改，欢迎开源协作者校对措辞。
+
+“组件”设置页可分别隐藏总览卡片以及磁盘、内存、电池、CPU、网络和设备详情中的子组件。磁盘详情默认显示文件类别、SMART 运行状况、温度和废纸篓；额外的已使用/总容量和外置卷卡片默认隐藏，可在设置中打开。电池详情也有使用率排行，网络详情有测速区。监控浮层和设置页都没有滚动区域。详情由再次点击对应总览卡片或点击浮层外侧收起。
+
+文件类别只在用户点击磁盘详情的“重新扫描”后遍历所选卷，完成的结果保存在本机 `Application Support/Lumine/disk-categories.json`。启动 App、打开详情和切换卷都只显示缓存，不会开始扫描。扫描中可以点击“停止”；旧缓存会一直保留到新扫描完整结束。要获取完整结果，请将稳定安装位置的 `Lumine.app` 加入 macOS“系统设置 → 隐私与安全性 → 完全磁盘访问权限”，然后重新打开 App 并手动重新扫描。这个权限必须由用户在系统设置中授予。分类按目录位置，读取的是文件实际分配大小；APFS 克隆、快照和系统保留空间可能使分类总和与卷占用不同。
+
+磁盘运行状况和温度从 macOS `diskutil info -plist` 报告的 SMART 字段读取。健康百分比是 `100 - PERCENTAGE_USED` 的寿命估算值，磁盘不提供该字段时只显示 SMART 状态或“不可用”。废纸篓“释放”会在确认后永久删除所选卷当前用户废纸篓中的内容，并报告失败项。CPU、内存、磁盘等说明卡片中的“了解更多”会打开对应的 [MacPaw 官方知识库](https://macpaw.com/support/cleanmymac/knowledgebase/the-menu)。总览的 Mac 健康描述仅依据 Lumine 能采集的指标；不包含杀毒、更新检查或清理评分。
+
+上面的第二条命令会为本地构建添加临时签名，便于 macOS 验证 App 包和手动授予完全磁盘访问权限。发布给其他 Mac 用户时，需要用自己的 Apple Developer 身份签名并公证；临时签名不能代替正式发布签名。
+
+## 数据说明
+
+日常监控数据由 macOS 本地接口、文件资源属性或系统自带的 `ps` 命令读取，不上传。CPU 与网络速率根据相邻采样计数器的差值计算。网络总量按分钟聚合并保存在本机；首次运行只能统计启动后的流量。CPU/内存/电池进程排行仅在对应详情打开时采集，最多每 10 秒运行一次 `ps`；电池排行用 CPU 活动量近似，不等于系统逐进程功耗。点击“关闭”会先核对进程身份，再请求正常退出，可能导致未保存的数据丢失。测速只在点击后经 HTTPS 使用 [Cloudflare Speedtest](https://github.com/cloudflare/speedtest) 的公开端点，约传输 28 MB，不自动运行。内存占用比例是根据物理页计算的估算值。CPU 温度尝试通过只读 AppleSMC 传感器获取；这是 Apple 未承诺稳定性的硬件接口，读不到时显示“不可用”。Wi-Fi 名称受 macOS 隐私权限限制时可能显示通用名称“Wi-Fi”。外设列表只包含已挂载的本地外置存储卷。
+
+架构与指标定义见 [架构设计](docs/architecture.md)。SMC 协议和传感器键的来源与许可见 [第三方声明](THIRD_PARTY_NOTICES.md)。`scripts/make_icon.swift` 可重新生成原创图标。开发者的参考截图留在公开 Git 仓库之外，不纳入源码或发布包。
+
+## 许可
+
+MIT，见 [LICENSE](LICENSE)。

@@ -1,0 +1,92 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		100000000000000000000101 /* LumineApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000201 /* LumineApp.swift */; };
+		100000000000000000000102 /* SystemMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000202 /* SystemMetrics.swift */; };
+		100000000000000000000103 /* MonitorViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000203 /* MonitorViews.swift */; };
+		100000000000000000000104 /* DetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000204 /* DetailView.swift */; };
+		100000000000000000000105 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000207 /* Assets.xcassets */; };
+		100000000000000000000106 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000208 /* Preferences.swift */; };
+		100000000000000000000107 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000209 /* SettingsView.swift */; };
+		100000000000000000000108 /* SMCReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000210 /* SMCReader.swift */; };
+		100000000000000000000111 /* DiskCategories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000213 /* DiskCategories.swift */; };
+		100000000000000000000112 /* DiskSupplement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000214 /* DiskSupplement.swift */; };
+		100000000000000000000113 /* NetworkActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000215 /* NetworkActions.swift */; };
+		100000000000000000000114 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000216 /* Localization.swift */; };
+		100000000000000000000115 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000217 /* Localizable.strings */; };
+		100000000000000000000109 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000211 /* LICENSE */; };
+		100000000000000000000110 /* THIRD_PARTY_NOTICES.md in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000212 /* THIRD_PARTY_NOTICES.md */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		100000000000000000000201 /* LumineApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LumineApp.swift; sourceTree = "<group>"; };
+		100000000000000000000202 /* SystemMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMetrics.swift; sourceTree = "<group>"; };
+		100000000000000000000203 /* MonitorViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorViews.swift; sourceTree = "<group>"; };
+		100000000000000000000204 /* DetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailView.swift; sourceTree = "<group>"; };
+		100000000000000000000205 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		100000000000000000000206 /* Lumine.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lumine.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		100000000000000000000207 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		100000000000000000000208 /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
+		100000000000000000000209 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		100000000000000000000210 /* SMCReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SMCReader.swift; sourceTree = "<group>"; };
+		100000000000000000000213 /* DiskCategories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskCategories.swift; sourceTree = "<group>"; };
+		100000000000000000000214 /* DiskSupplement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSupplement.swift; sourceTree = "<group>"; };
+		100000000000000000000215 /* NetworkActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkActions.swift; sourceTree = "<group>"; };
+		100000000000000000000216 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		100000000000000000000218 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		100000000000000000000219 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		100000000000000000000220 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = "en.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		100000000000000000000221 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = "ja.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		100000000000000000000222 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = "ru.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		100000000000000000000223 /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = "ko.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		100000000000000000000224 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = "es.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		100000000000000000000211 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
+		100000000000000000000212 /* THIRD_PARTY_NOTICES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = THIRD_PARTY_NOTICES.md; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		100000000000000000000301 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		100000000000000000000401 = {isa = PBXGroup; children = (100000000000000000000402 /* Lumine */, 100000000000000000000211 /* LICENSE */, 100000000000000000000212 /* THIRD_PARTY_NOTICES.md */, 100000000000000000000403 /* Products */); sourceTree = "<group>"; };
+		100000000000000000000402 /* Lumine */ = {isa = PBXGroup; children = (100000000000000000000201 /* LumineApp.swift */, 100000000000000000000202 /* SystemMetrics.swift */, 100000000000000000000213 /* DiskCategories.swift */, 100000000000000000000214 /* DiskSupplement.swift */, 100000000000000000000215 /* NetworkActions.swift */, 100000000000000000000216 /* Localization.swift */, 100000000000000000000203 /* MonitorViews.swift */, 100000000000000000000204 /* DetailView.swift */, 100000000000000000000208 /* Preferences.swift */, 100000000000000000000209 /* SettingsView.swift */, 100000000000000000000210 /* SMCReader.swift */, 100000000000000000000217 /* Localizable.strings */, 100000000000000000000205 /* Info.plist */, 100000000000000000000207 /* Assets.xcassets */); path = Lumine; sourceTree = "<group>"; };
+		100000000000000000000217 /* Localizable.strings */ = {isa = PBXVariantGroup; children = (100000000000000000000218 /* zh-Hans */, 100000000000000000000219 /* zh-Hant */, 100000000000000000000220 /* en */, 100000000000000000000221 /* ja */, 100000000000000000000222 /* ru */, 100000000000000000000223 /* ko */, 100000000000000000000224 /* es */); name = Localizable.strings; sourceTree = "<group>"; };
+		100000000000000000000403 /* Products */ = {isa = PBXGroup; children = (100000000000000000000206 /* Lumine.app */); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		100000000000000000000501 /* Lumine */ = {isa = PBXNativeTarget; buildConfigurationList = 100000000000000000000601 /* Build configuration list for PBXNativeTarget "Lumine" */; buildPhases = (100000000000000000000302 /* Sources */, 100000000000000000000301 /* Frameworks */, 100000000000000000000303 /* Resources */); buildRules = (); dependencies = (); name = Lumine; productName = Lumine; productReference = 100000000000000000000206 /* Lumine.app */; productType = "com.apple.product-type.application"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		100000000000000000000701 /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 2700; TargetAttributes = {100000000000000000000501 = {CreatedOnToolsVersion = 27.0; }; }; }; buildConfigurationList = 100000000000000000000602 /* Build configuration list for PBXProject "Lumine" */; compatibilityVersion = "Xcode 14.0"; developmentRegion = "zh-Hans"; hasScannedForEncodings = 0; knownRegions = ("zh-Hans", "zh-Hant", en, ja, ru, ko, es); mainGroup = 100000000000000000000401; productRefGroup = 100000000000000000000403 /* Products */; projectDirPath = ""; projectRoot = ""; targets = (100000000000000000000501 /* Lumine */); };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		100000000000000000000303 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (100000000000000000000105 /* Assets.xcassets in Resources */, 100000000000000000000109 /* LICENSE in Resources */, 100000000000000000000110 /* THIRD_PARTY_NOTICES.md in Resources */, 100000000000000000000115 /* Localizable.strings in Resources */); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		100000000000000000000302 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (100000000000000000000101 /* LumineApp.swift in Sources */, 100000000000000000000102 /* SystemMetrics.swift in Sources */, 100000000000000000000111 /* DiskCategories.swift in Sources */, 100000000000000000000112 /* DiskSupplement.swift in Sources */, 100000000000000000000113 /* NetworkActions.swift in Sources */, 100000000000000000000114 /* Localization.swift in Sources */, 100000000000000000000103 /* MonitorViews.swift in Sources */, 100000000000000000000104 /* DetailView.swift in Sources */, 100000000000000000000106 /* Preferences.swift in Sources */, 100000000000000000000107 /* SettingsView.swift in Sources */, 100000000000000000000108 /* SMCReader.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		100000000000000000000801 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CLANG_ENABLE_MODULES = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 10; DEBUG_INFORMATION_FORMAT = dwarf; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Lumine/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks"); MACOSX_DEPLOYMENT_TARGET = 13.0; MARKETING_VERSION = 1.7.0; PRODUCT_BUNDLE_IDENTIFIER = app.lumine.monitor; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = macosx; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_VERSION = 5.0; }; name = Debug; };
+		100000000000000000000802 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CLANG_ENABLE_MODULES = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 10; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Lumine/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks"); MACOSX_DEPLOYMENT_TARGET = 13.0; MARKETING_VERSION = 1.7.0; PRODUCT_BUNDLE_IDENTIFIER = app.lumine.monitor; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = macosx; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O"; SWIFT_VERSION = 5.0; }; name = Release; };
+		100000000000000000000803 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGNING_ALLOWED = NO; MACOSX_DEPLOYMENT_TARGET = 13.0; SDKROOT = macosx; }; name = Debug; };
+		100000000000000000000804 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGNING_ALLOWED = NO; MACOSX_DEPLOYMENT_TARGET = 13.0; SDKROOT = macosx; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		100000000000000000000601 /* Build configuration list for PBXNativeTarget "Lumine" */ = {isa = XCConfigurationList; buildConfigurations = (100000000000000000000801 /* Debug */, 100000000000000000000802 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		100000000000000000000602 /* Build configuration list for PBXProject "Lumine" */ = {isa = XCConfigurationList; buildConfigurations = (100000000000000000000803 /* Debug */, 100000000000000000000804 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = 100000000000000000000701 /* Project object */;
+}
