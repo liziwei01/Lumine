@@ -29,6 +29,8 @@ struct ThemeConfiguration: Codable, Hashable {
     var panelBorder = "#68509A"
     var cardBorder = "#745D9E"
     var selection = "#6A85F8"
+    var hoverWhitening: Double? = nil
+    var selectedBlueTint: Double? = nil
     var text = "#FAF8FF"
     var muted = "#C9C4DC"
     var blue = "#7895FF"
@@ -41,6 +43,8 @@ struct ThemeConfiguration: Codable, Hashable {
     var resolvedBeam: BeamConfiguration { beam ?? .reference }
     var resolvedRingGlowStrength: Double { min(1, max(0, ringGlowStrength ?? 0.7)) }
     var resolvedRingGlowRadius: Double { min(16, max(0, ringGlowRadius ?? 7)) }
+    var resolvedHoverWhitening: Double { min(0.3, max(0, hoverWhitening ?? 0.10)) }
+    var resolvedSelectedBlueTint: Double { min(0.3, max(0, selectedBlueTint ?? 0.15)) }
 
     static func points(for direction: String) -> (UnitPoint, UnitPoint) {
         switch direction {

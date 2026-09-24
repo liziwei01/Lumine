@@ -111,7 +111,9 @@ struct PanelSurface<Content: View>: View {
 struct MetricCard<Content: View>: View {
     let selected: Bool
     var tone: Double = 0
+    var interactive = false
     @ViewBuilder let content: Content
+    @State private var hovering = false
 
     var body: some View {
         let theme = PreferencesStore.shared.values.theme
@@ -128,9 +130,19 @@ struct MetricCard<Content: View>: View {
                     .fill(LinearGradient(colors: [first, last], startPoint: cardPoints.0, endPoint: cardPoints.1))
                     .overlay {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(.white.opacity(interactive && hovering ? theme.resolvedHoverWhitening : 0))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color(hex: theme.selection).opacity(selected ? theme.resolvedSelectedBlueTint : 0))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .strokeBorder(selected ? Color(hex: theme.selection) : Color(hex: theme.cardBorder).opacity(0.45), lineWidth: selected ? 2 : 0.6)
                     }
             }
+            .onHover { if interactive { hovering = $0 } }
+            .animation(.easeOut(duration: 0.14), value: hovering)
     }
 }
 
@@ -292,7 +304,7 @@ struct OverviewView: View {
 
     private func overviewButton<Content: View>(_ kind: DetailKind, height: CGFloat, tone: Double, @ViewBuilder content: () -> Content) -> some View {
         Button { select(kind) } label: {
-            MetricCard(selected: selected == kind, tone: tone) {
+            MetricCard(selected: selected == kind, tone: tone, interactive: true) {
                 VStack(alignment: .leading, spacing: 4, content: content)
             }
             .frame(height: height)
@@ -303,7 +315,7 @@ struct OverviewView: View {
 
     private var networkOverviewCard: some View {
         Button { select(.network) } label: {
-            MetricCard(selected: selected == .network, tone: 0) {
+            MetricCard(selected: selected == .network, tone: 0, interactive: true) {
                 VStack(alignment: .leading, spacing: 6) {
                     cardHeader("wifi", m.has(.network) ? L10n.lookup(m.networkName) : L10n.tr("不可用"))
                     Text("↑  \(m.has(.network) ? MetricFormat.speed(m.uploadBytesPerSecond) : L10n.tr("不可用"))")

@@ -324,3 +324,5 @@
 "上次读数：{0}" = "Last reading: {0}";
 "至少已读取：{0}" = "At least {0} read";
 "请检查 Lumine 的完全磁盘访问权限。" = "Check Lumine's Full Disk Access permission.";
+"悬停泛白" = "Hover whitening";
+"选中泛蓝" = "Selected blue tint";

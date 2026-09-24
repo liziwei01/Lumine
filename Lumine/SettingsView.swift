@@ -267,6 +267,8 @@ struct SettingsView: View {
                         colorPair(L10n.tr("起点"), \.cardStart, L10n.tr("终点"), \.cardEnd)
                         colorPair(L10n.tr("普通边框"), \.cardBorder, L10n.tr("选中边框"), \.selection)
                         directionPicker(L10n.tr("渐变方向"), keyPath: \.cardDirection)
+                        ringGlowSlider(L10n.tr("悬停泛白"), value: hoverWhiteningBinding, range: 0...0.3, format: { "\(Int($0 * 100))%" })
+                        ringGlowSlider(L10n.tr("选中泛蓝"), value: selectedBlueTintBinding, range: 0...0.3, format: { "\(Int($0 * 100))%" })
                     }
                     .padding(5)
                 }
@@ -308,13 +310,13 @@ struct SettingsView: View {
                     MacHealthIcon().scaleEffect(0.7)
                 }
                 HStack(spacing: 9) {
-                    MetricCard(selected: true) {
+                    MetricCard(selected: true, interactive: true) {
                         VStack(alignment: .leading, spacing: 7) {
                             Text(L10n.tr("内存")).font(.system(size: 12, weight: .bold))
                             Text(L10n.tr("占用：58%")).font(.system(size: 11)).foregroundStyle(Palette.yellow)
                         }
                     }
-                    MetricCard(selected: false, tone: 1) {
+                    MetricCard(selected: false, tone: 1, interactive: true) {
                         VStack(alignment: .leading, spacing: 7) {
                             Text("CPU").font(.system(size: 12, weight: .bold))
                             Text(L10n.tr("加载：23%")).font(.system(size: 11)).foregroundStyle(Palette.cyan)
@@ -569,6 +571,20 @@ struct SettingsView: View {
         Binding(
             get: { preferences.values.theme.resolvedRingGlowStrength },
             set: { preferences.values.theme.ringGlowStrength = $0 }
+        )
+    }
+
+    private var hoverWhiteningBinding: Binding<Double> {
+        Binding(
+            get: { preferences.values.theme.resolvedHoverWhitening },
+            set: { preferences.values.theme.hoverWhitening = $0 }
+        )
+    }
+
+    private var selectedBlueTintBinding: Binding<Double> {
+        Binding(
+            get: { preferences.values.theme.resolvedSelectedBlueTint },
+            set: { preferences.values.theme.selectedBlueTint = $0 }
         )
     }
 
