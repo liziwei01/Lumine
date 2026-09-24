@@ -331,20 +331,39 @@ struct SettingsView: View {
                         }
                     }
                 }
+                sourceGroup(L10n.tr("读取失败时保留旧值"), note: L10n.tr("仅在临时读取失败时沿用同一来源的上次有效值；到期后显示不可用。正常的零值和断开连接立即更新。")) {
+                    Picker(L10n.tr("保留时间"), selection: retentionBinding) {
+                        Text(L10n.tr("立即失效")).tag(0)
+                        Text(L10n.tr("1 分钟")).tag(60)
+                        Text(L10n.tr("5 分钟")).tag(300)
+                        Text(L10n.tr("10 分钟")).tag(600)
+                        Text(L10n.tr("30 分钟")).tag(1800)
+                    }
+                }
                 sourceGroup(L10n.tr("CPU 使用率"), note: L10n.tr("总体为全部逻辑核心平均；单核心使用率来自 macOS 的逐核心计数器。")) {
                     Picker(L10n.tr("显示"), selection: binding(\.cpuSource)) {
                         Text(L10n.tr("总体平均")).tag("overall")
                         ForEach(store.metrics.cpuCores, id: \.index) { core in
                             Text(L10n.tr("逻辑核心 \(core.index)")).tag("core:\(core.index)")
                         }
+                        if preferences.values.cpuSource.hasPrefix("core:"),
+                           let index = Int(preferences.values.cpuSource.dropFirst(5)),
+                           !store.metrics.cpuCores.contains(where: { $0.index == index }) {
+                            Text(L10n.tr("逻辑核心 \(index)")).tag(preferences.values.cpuSource)
+                        }
                     }
                 }
-                sourceGroup(L10n.tr("CPU 温度"), note: L10n.tr("SMC 是未公开的硬件传感器接口；此机型无法读取时显示不可用。")) {
+                sourceGroup(L10n.tr("CPU 温度"), note: L10n.tr("SMC 是未公开的硬件传感器接口；读取失败会先保留上次温度，超过保留时间后显示不可用。")) {
                     Picker(L10n.tr("显示"), selection: binding(\.temperatureSource)) {
                         Text(L10n.tr("平均温度")).tag("average")
                         Text(L10n.tr("最高温度")).tag("hottest")
                         ForEach(store.metrics.cpuTemperatures, id: \.key) { sensor in
                             Text("\(L10n.lookup(sensor.name)) · \(sensor.key)").tag("sensor:\(sensor.key)")
+                        }
+                        if preferences.values.temperatureSource.hasPrefix("sensor:"),
+                           !store.metrics.cpuTemperatures.contains(where: { "sensor:\($0.key)" == preferences.values.temperatureSource }) {
+                            Text(String(preferences.values.temperatureSource.dropFirst(7)))
+                                .tag(preferences.values.temperatureSource)
                         }
                         Text(L10n.tr("不显示温度")).tag("off")
                     }
@@ -352,10 +371,14 @@ struct SettingsView: View {
             }
             if dataPage == 1 {
                 sourceGroup(L10n.tr("网络"), note: L10n.tr("可选择自动识别或指定网络接口。速率只统计所选接口。")) {
-                    Picker(L10n.tr("接口"), selection: binding(\.networkInterface)) {
+                    Picker(L10n.tr("接口"), selection: networkInterfaceBinding) {
                         Text(L10n.tr("自动识别")).tag("auto")
                         ForEach(store.metrics.networkInterfaces, id: \.self) { name in
                             Text(name).tag(name)
+                        }
+                        if preferences.values.networkInterface != "auto",
+                           !store.metrics.networkInterfaces.contains(preferences.values.networkInterface) {
+                            Text(preferences.values.networkInterface).tag(preferences.values.networkInterface)
                         }
                     }
                 }
@@ -382,6 +405,11 @@ struct SettingsView: View {
                         Text(L10n.tr("启动卷")).tag("startup")
                         ForEach(store.metrics.externalVolumes) { volume in
                             Text(volume.name).tag(volume.id)
+                        }
+                        if preferences.values.diskSource != "startup",
+                           !store.metrics.externalVolumes.contains(where: { $0.id == preferences.values.diskSource }) {
+                            Text(URL(fileURLWithPath: preferences.values.diskSource).lastPathComponent)
+                                .tag(preferences.values.diskSource)
                         }
                     }
                 }
@@ -510,12 +538,32 @@ struct SettingsView: View {
         )
     }
 
+    private var retentionBinding: Binding<Int> {
+        Binding(
+            get: { preferences.values.failedSampleRetentionSeconds },
+            set: {
+                preferences.values.failedSampleRetentionSeconds = $0
+                store.refresh()
+            }
+        )
+    }
+
     private var diskSourceBinding: Binding<String> {
         Binding(
             get: { preferences.values.diskSource },
             set: {
                 preferences.values.diskSource = $0
                 updateDiskCategorySelection()
+            }
+        )
+    }
+
+    private var networkInterfaceBinding: Binding<String> {
+        Binding(
+            get: { preferences.values.networkInterface },
+            set: {
+                preferences.values.networkInterface = $0
+                store.networkSourceChanged()
             }
         )
     }

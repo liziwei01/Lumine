@@ -154,7 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if kind == .disk {
                 let path = store.selectedVolume.id == "startup" ? "/" : store.selectedVolume.id
                 let visible = PreferencesStore.shared.values
-                if visible.shows(.diskHealth) || visible.shows(.diskTemperature) || visible.shows(.diskTrash) {
+                if store.selectedVolumeAvailable && (visible.shows(.diskHealth) || visible.shows(.diskTemperature) || visible.shows(.diskTrash)) {
                     DiskSupplementStore.shared.refresh(path: path,
                                                        diagnostics: visible.shows(.diskHealth) || visible.shows(.diskTemperature),
                                                        trash: visible.shows(.diskTrash))

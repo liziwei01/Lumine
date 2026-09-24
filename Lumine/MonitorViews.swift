@@ -178,7 +178,7 @@ struct OverviewView: View {
     private func shows(_ widget: Widget) -> Bool { preferences.values.shows(widget) }
 
     private var healthLabel: String {
-        guard m.diskTotal > 0 else { return L10n.tr("检查中") }
+        guard m.has(.disk), m.diskTotal > 0 else { return L10n.tr("不可用") }
         let freeRatio = Double(m.diskFree) / Double(m.diskTotal)
         if freeRatio < 0.10 || m.batteryHealthPercent.map({ $0 <= 10 }) == true || store.selectedTemperature.map({ $0 >= 76 }) == true {
             return L10n.tr("需要关注")
@@ -204,7 +204,8 @@ struct OverviewView: View {
                                 Text(healthLabel).foregroundStyle(healthLabel == L10n.tr("良好") ? Palette.mint : Palette.yellow)
                             }
                             .font(.system(size: 18, weight: .bold))
-                            Text(m.deviceName).font(.system(size: 12)).foregroundStyle(Palette.muted)
+                            Text(m.has(.deviceName) ? m.deviceName : L10n.tr("不可用"))
+                                .font(.system(size: 12)).foregroundStyle(Palette.muted)
                         }
                         Spacer()
                         if preferences.values.allowDragging { PanelDragControl(key: "overview") }
@@ -219,7 +220,7 @@ struct OverviewView: View {
                         overviewButton(.disk, height: 76, tone: 0) {
                             cardHeader("internaldrive", store.selectedVolume.name)
                             Spacer(minLength: 2)
-                            Text(L10n.tr("可用：\(MetricFormat.diskBytes(Double(store.selectedVolume.freeBytes)))"))
+                            Text(L10n.tr("可用：\(store.selectedVolumeAvailable ? MetricFormat.diskBytes(Double(store.selectedVolume.freeBytes)) : L10n.tr("不可用"))"))
                                 .font(.system(size: 12)).foregroundStyle(Palette.yellow)
                         }
                     }
@@ -227,7 +228,7 @@ struct OverviewView: View {
                         overviewButton(.memory, height: 76, tone: 1) {
                             cardHeader("memorychip", L10n.tr("内存"))
                             Spacer(minLength: 2)
-                            Text(L10n.tr("压力值：\(MetricFormat.percent(m.memoryPressureEstimate))"))
+                            Text(L10n.tr("压力值：\(m.has(.memory) ? MetricFormat.percent(m.memoryPressureEstimate) : L10n.tr("不可用"))"))
                                 .font(.system(size: 12)).foregroundStyle(Palette.yellow)
                         }
                     }
@@ -236,14 +237,14 @@ struct OverviewView: View {
                     if shows(.overviewBattery) {
                         overviewButton(.battery, height: 56, tone: 0) {
                             cardHeader("battery.75percent", L10n.tr("电池"), trailing: m.batteryPercent.map { "\($0)%" } ?? "—")
-                            Text(m.batteryPercent == nil ? L10n.tr("此 Mac 未报告电池") : (m.batteryCharging ? L10n.tr("正在充电") : MetricFormat.duration(m.batteryMinutes)))
+                            Text(m.batteryPercent == nil ? (store.batteryPreviouslyPresent ? L10n.tr("不可用") : L10n.tr("此 Mac 未报告电池")) : (m.batteryCharging ? L10n.tr("正在充电") : MetricFormat.duration(m.batteryMinutes)))
                                 .font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
                         }
                     }
                     if shows(.overviewCPU) {
                         overviewButton(.cpu, height: 56, tone: 1) {
                             cardHeader("cpu", "CPU", trailing: preferences.values.temperatureSource == "off" ? nil : store.selectedTemperature.map { String(format: "%.0f°C", $0) } ?? "—°C", trailingColor: cpuTemperatureColor)
-                            Text(L10n.tr("\(store.cpuSourceLabel)加载：\(MetricFormat.percent(store.selectedCPU.total))"))
+                            Text(L10n.tr("\(store.cpuSourceLabel)加载：\(store.selectedCPUAvailable ? MetricFormat.percent(store.selectedCPU.total) : L10n.tr("不可用"))"))
                                 .font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
                         }
                     }
@@ -256,7 +257,7 @@ struct OverviewView: View {
                         overviewButton(.devices, height: 64, tone: 1) {
                             cardHeader("externaldrive.connected.to.line.below", L10n.tr("已连接的设备"))
                             Spacer(minLength: 2)
-                            Text(m.externalVolumes.isEmpty ? L10n.tr("无外置存储设备") : L10n.tr("\(m.externalVolumes.count) 个外置存储设备"))
+                            Text(!m.has(.externalVolumes) ? L10n.tr("不可用") : (m.externalVolumes.isEmpty ? L10n.tr("无外置存储设备") : L10n.tr("\(m.externalVolumes.count) 个外置存储设备")))
                                 .font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
                         }
                     }
@@ -304,9 +305,9 @@ struct OverviewView: View {
         Button { select(.network) } label: {
             MetricCard(selected: selected == .network, tone: 0) {
                 VStack(alignment: .leading, spacing: 6) {
-                    cardHeader("wifi", L10n.lookup(m.networkName))
-                    Text("↑  \(MetricFormat.speed(m.uploadBytesPerSecond))")
-                    Text("↓  \(MetricFormat.speed(m.downloadBytesPerSecond))")
+                    cardHeader("wifi", m.has(.network) ? L10n.lookup(m.networkName) : L10n.tr("不可用"))
+                    Text("↑  \(m.has(.network) ? MetricFormat.speed(m.uploadBytesPerSecond) : L10n.tr("不可用"))")
+                    Text("↓  \(m.has(.network) ? MetricFormat.speed(m.downloadBytesPerSecond) : L10n.tr("不可用"))")
                     Spacer(minLength: 0)
                 }
                 .font(.system(size: 12, weight: .medium))

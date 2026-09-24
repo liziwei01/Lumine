@@ -31,7 +31,14 @@ struct ExternalVolume: Identifiable {
     let freeBytes: Int64
 }
 
+enum MetricField: Hashable {
+    case deviceName, volumeName, cpu, cores, cpuTemperature, memory, swap, disk, externalVolumes
+    case batteryPower, batteryMinutes, batteryCycles, batteryDesignCycles, batteryHealth, batteryTemperature
+    case network, networkName, networkSecurity, processes, uptime
+}
+
 struct SystemMetrics {
+    var validFields: Set<MetricField> = []
     var deviceName = Host.current().localizedName ?? "Mac"
     var cpuName = "CPU"
     var volumeName = "Macintosh HD"
@@ -74,6 +81,8 @@ struct SystemMetrics {
     var memoryPressureEstimate: Double {
         memoryTotal > 0 ? min(100, Double(memoryUsed) / Double(memoryTotal) * 100) : 0
     }
+
+    func has(_ field: MetricField) -> Bool { validFields.contains(field) }
 }
 
 private struct CPUCounters {
@@ -96,16 +105,30 @@ final class SystemSampler: @unchecked Sendable {
     private var previousTime: TimeInterval?
     private lazy var modelName = cpuModelName()
     private var smcReader = SMCReader()
-    private var cachedProcesses: [ProcessUsage] = []
+    private var nextSMCAttempt: TimeInterval = 0
     private var lastProcessSample: TimeInterval = 0
 
     func sample(networkInterface: String = "auto", includeProcesses: Bool = false) -> SystemMetrics {
         var result = SystemMetrics()
+        if let name = Host.current().localizedName, !name.isEmpty {
+            result.deviceName = name
+            result.validFields.insert(.deviceName)
+        }
         result.uptime = ProcessInfo.processInfo.systemUptime
+        result.validFields.insert(.uptime)
         result.cpuName = modelName
         sampleCPU(into: &result)
         sampleCores(into: &result)
+        if smcReader == nil && result.uptime >= nextSMCAttempt {
+            smcReader = SMCReader()
+            nextSMCAttempt = result.uptime + 30
+        }
         result.cpuTemperatures = smcReader?.cpuTemperatures(model: result.cpuName) ?? []
+        if result.cpuTemperatures.isEmpty, smcReader != nil {
+            smcReader?.close()
+            smcReader = nil
+            nextSMCAttempt = result.uptime + 30
+        }
         sampleMemory(into: &result)
         sampleDisk(into: &result)
         sampleBattery(into: &result)
@@ -115,10 +138,9 @@ final class SystemSampler: @unchecked Sendable {
             let now = ProcessInfo.processInfo.systemUptime
             if now - lastProcessSample >= 10 {
                 sampleProcesses(into: &result)
-                cachedProcesses = result.processes
-                lastProcessSample = now
-            } else {
-                result.processes = cachedProcesses
+                if result.has(.processes) {
+                    lastProcessSample = now
+                }
             }
         }
         return result
@@ -162,6 +184,7 @@ final class SystemSampler: @unchecked Sendable {
                 result.cpuUser = (user + nice) / total * 100
                 result.cpuSystem = system / total * 100
                 result.cpuTotal = result.cpuUser + result.cpuSystem
+                result.validFields.insert(.cpu)
             }
         }
         previousCPU = current
@@ -178,6 +201,7 @@ final class SystemSampler: @unchecked Sendable {
         }
         let states = Int(CPU_STATE_MAX)
         var currentCounters: [CPUCounters] = []
+        var allUsageValid = processorCount > 0
         for index in 0..<Int(processorCount) {
             let start = index * states
             guard start + states <= Int(informationCount) else { break }
@@ -198,11 +222,16 @@ final class SystemSampler: @unchecked Sendable {
                 let sum = user + system + idle + nice
                 if sum > 0 {
                     usage = CoreUsage(index: index, total: (user + system + nice) / sum * 100, user: (user + nice) / sum * 100, system: system / sum * 100)
+                } else {
+                    allUsageValid = false
                 }
+            } else {
+                allUsageValid = false
             }
             result.cpuCores.append(usage)
         }
         previousCoreCounters = currentCounters
+        if allUsageValid && currentCounters.count == Int(processorCount) { result.validFields.insert(.cores) }
     }
 
     private func sampleMemory(into result: inout SystemMetrics) {
@@ -214,19 +243,22 @@ final class SystemSampler: @unchecked Sendable {
                 host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
             }
         }
-        guard status == KERN_SUCCESS else { return }
-        let pageSize = UInt64(vm_kernel_page_size)
-        result.memoryImmediatelyFree = UInt64(info.free_count) * pageSize
-        result.memoryActive = UInt64(info.active_count) * pageSize
-        result.memoryWired = UInt64(info.wire_count) * pageSize
-        result.memoryCompressed = UInt64(info.compressor_page_count) * pageSize
-        let freePages = UInt64(info.free_count) + UInt64(info.inactive_count) + UInt64(info.speculative_count)
-        result.memoryFree = min(result.memoryTotal, freePages * pageSize)
+        if status == KERN_SUCCESS && result.memoryTotal > 0 {
+            let pageSize = UInt64(vm_kernel_page_size)
+            result.memoryImmediatelyFree = UInt64(info.free_count) * pageSize
+            result.memoryActive = UInt64(info.active_count) * pageSize
+            result.memoryWired = UInt64(info.wire_count) * pageSize
+            result.memoryCompressed = UInt64(info.compressor_page_count) * pageSize
+            let freePages = UInt64(info.free_count) + UInt64(info.inactive_count) + UInt64(info.speculative_count)
+            result.memoryFree = min(result.memoryTotal, freePages * pageSize)
+            result.validFields.insert(.memory)
+        }
 
         var usage = xsw_usage()
         var size = MemoryLayout<xsw_usage>.size
         if sysctlbyname("vm.swapusage", &usage, &size, nil, 0) == 0 {
             result.swapUsed = usage.xsu_used
+            result.validFields.insert(.swap)
         }
     }
 
@@ -234,15 +266,27 @@ final class SystemSampler: @unchecked Sendable {
         let root = URL(fileURLWithPath: "/")
         let keys: Set<URLResourceKey> = [.volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]
         if let values = try? root.resourceValues(forKeys: keys) {
-            result.volumeName = values.volumeName ?? result.volumeName
-            result.diskTotal = Int64(values.volumeTotalCapacity ?? 0)
-            result.diskFree = values.volumeAvailableCapacityForImportantUsage ?? 0
+            if let name = values.volumeName, !name.isEmpty {
+                result.volumeName = name
+                result.validFields.insert(.volumeName)
+            }
+            if let total = values.volumeTotalCapacity, total > 0,
+               let free = values.volumeAvailableCapacityForImportantUsage, free >= 0 {
+                result.diskTotal = Int64(total)
+                result.diskFree = free
+                result.validFields.insert(.disk)
+            }
         }
         let volumeKeys: Set<URLResourceKey> = [.volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey, .volumeIsInternalKey, .volumeIsLocalKey]
-        result.externalVolumes = (FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: Array(volumeKeys), options: [.skipHiddenVolumes]) ?? [])
+        if let volumes = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: Array(volumeKeys), options: [.skipHiddenVolumes]) {
+            result.validFields.insert(.externalVolumes)
+            result.externalVolumes = volumes
             .compactMap { url -> ExternalVolume? in
-                guard let values = try? url.resourceValues(forKeys: volumeKeys),
-                      values.volumeIsLocal != false,
+                guard let values = try? url.resourceValues(forKeys: volumeKeys) else {
+                    return url.path.hasPrefix("/Volumes/")
+                        ? ExternalVolume(id: url.path, name: url.lastPathComponent, totalBytes: 0, freeBytes: 0) : nil
+                }
+                guard values.volumeIsLocal != false,
                       values.volumeIsInternal == false || url.path.hasPrefix("/Volumes/") else { return nil }
                 return ExternalVolume(
                     id: url.path,
@@ -251,6 +295,7 @@ final class SystemSampler: @unchecked Sendable {
                     freeBytes: values.volumeAvailableCapacityForImportantUsage ?? 0
                 )
             }
+        }
     }
 
     private func sampleBattery(into result: inout SystemMetrics) {
@@ -262,11 +307,13 @@ final class SystemSampler: @unchecked Sendable {
                   let maxCapacity = details[kIOPSMaxCapacityKey as String] as? Int,
                   maxCapacity > 0 else { continue }
             result.batteryPercent = Int((Double(current) / Double(maxCapacity) * 100).rounded())
+            result.validFields.insert(.batteryPower)
             result.batteryCharging = details[kIOPSIsChargingKey as String] as? Bool ?? false
             result.batteryOnAC = (details[kIOPSPowerSourceStateKey as String] as? String) == (kIOPSACPowerValue as String)
             let minutesKey = result.batteryOnAC ? kIOPSTimeToFullChargeKey : kIOPSTimeToEmptyKey
             if let minutes = details[minutesKey as String] as? Int, minutes >= 0, minutes < 24 * 60 {
                 result.batteryMinutes = minutes
+                result.validFields.insert(.batteryMinutes)
             }
             return
         }
@@ -281,16 +328,22 @@ final class SystemSampler: @unchecked Sendable {
             IORegistryEntryCreateCFProperty(service, key as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue()
         }
         result.batteryCycles = (value("CycleCount") as? NSNumber)?.intValue
+        if result.batteryCycles != nil { result.validFields.insert(.batteryCycles) }
         result.batteryDesignCycles = (value("DesignCycleCount9C") as? NSNumber)?.intValue
+        if result.batteryDesignCycles != nil { result.validFields.insert(.batteryDesignCycles) }
         if let raw = (value("Temperature") as? NSNumber)?.doubleValue {
             let temperature = raw > 1000 ? raw / 100 : raw
-            if (0...80).contains(temperature) { result.batteryTemperature = temperature }
+            if (0...80).contains(temperature) {
+                result.batteryTemperature = temperature
+                result.validFields.insert(.batteryTemperature)
+            }
         }
         if let data = value("BatteryData") as? [String: Any],
            let full = data["FullChargeCapacity"] as? NSNumber,
            let design = data["DesignCapacity"] as? NSNumber,
-           design.doubleValue > 0 {
+           full.doubleValue > 0, design.doubleValue > 0 {
             result.batteryHealthPercent = min(100, full.doubleValue / design.doubleValue * 100)
+            result.validFields.insert(.batteryHealth)
         }
     }
 
@@ -300,6 +353,7 @@ final class SystemSampler: @unchecked Sendable {
         let wifiInterface = wifi?.interfaceName
         var addressList: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&addressList) == 0, let head = addressList else { return }
+        result.validFields.insert(.network)
         defer { freeifaddrs(head) }
         var counters: [String: NetworkCounters] = [:]
         var cursor: UnsafeMutablePointer<ifaddrs>? = head
@@ -314,15 +368,21 @@ final class SystemSampler: @unchecked Sendable {
             counters[name] = NetworkCounters(received: UInt64(stats.ifi_ibytes), sent: UInt64(stats.ifi_obytes))
         }
         result.networkInterfaces = counters.keys.sorted()
-        let chosen = (preferredInterface != "auto" && counters[preferredInterface] != nil ? preferredInterface : nil)
-            ?? wifiInterface.flatMap { counters[$0] != nil ? $0 : nil }
-            ?? counters.keys.filter { $0.hasPrefix("en") }.sorted().first
-            ?? counters.keys.sorted().first
+        let chosen: String?
+        if preferredInterface == "auto" {
+            chosen = wifiInterface.flatMap { counters[$0] != nil ? $0 : nil }
+                ?? counters.keys.filter { $0.hasPrefix("en") }.sorted().first
+                ?? counters.keys.sorted().first
+        } else {
+            chosen = counters[preferredInterface] != nil ? preferredInterface : nil
+        }
         let now = ProcessInfo.processInfo.systemUptime
         if let chosen, let current = counters[chosen] {
             result.networkInterface = chosen
             result.networkName = chosen == wifiInterface ? (wifiName ?? "Wi-Fi") : chosen
+            if chosen != wifiInterface || wifiName != nil { result.validFields.insert(.networkName) }
             if chosen == wifiInterface, let security = wifi?.security().rawValue {
+                result.validFields.insert(.networkSecurity)
                 switch security {
                 case 0: result.networkSecurity = "开放网络"; result.networkSecurityStrong = false
                 case 4, 9: result.networkSecurity = "WPA2"; result.networkSecurityStrong = true
@@ -332,6 +392,7 @@ final class SystemSampler: @unchecked Sendable {
                 }
             } else if chosen != wifiInterface {
                 result.networkSecurity = "有线或其他接口"
+                result.validFields.insert(.networkSecurity)
             }
             if let prior = previousNetwork[chosen], let previousTime {
                 let elapsed = max(now - previousTime, 0.1)
@@ -340,6 +401,9 @@ final class SystemSampler: @unchecked Sendable {
                 result.downloadBytesPerSecond = Double(result.downloadedBytes) / elapsed
                 result.uploadBytesPerSecond = Double(result.uploadedBytes) / elapsed
             }
+        } else {
+            result.validFields.insert(.networkName)
+            result.validFields.insert(.networkSecurity)
         }
         previousNetwork = counters
         previousTime = now
@@ -363,7 +427,7 @@ final class SystemSampler: @unchecked Sendable {
             let data = output.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
             guard process.terminationStatus == 0, let text = String(data: data, encoding: .utf8) else { return }
-            result.processes = text.split(separator: "\n").compactMap { line in
+            let parsed = text.split(separator: "\n").compactMap { line -> ProcessUsage? in
                 let parts = line.split(maxSplits: 3, whereSeparator: \.isWhitespace)
                 guard parts.count == 4, let pid = Int32(parts[0]),
                       let rss = UInt64(parts[1]), let cpu = Double(parts[2]) else { return nil }
@@ -371,6 +435,9 @@ final class SystemSampler: @unchecked Sendable {
                 let name = URL(fileURLWithPath: commandPath).lastPathComponent
                 return ProcessUsage(id: pid, name: name, commandPath: commandPath, memoryBytes: rss * 1024, cpuPercent: cpu)
             }
+            guard text.isEmpty || !parsed.isEmpty else { return }
+            result.processes = parsed
+            result.validFields.insert(.processes)
         } catch {
             return
         }
@@ -395,6 +462,10 @@ final class MonitorStore: ObservableObject {
     private var isSampling = false
     private var isStopped = false
     private var pendingDetailRefresh = false
+    private var lastSuccess: [MetricField: TimeInterval] = [:]
+    private var sensorLastSuccess: [String: TimeInterval] = [:]
+    private var volumeLastSuccess: [String: TimeInterval] = [:]
+    private var lastRequestedNetworkInterface = "auto"
 
     var selectedCPU: CoreUsage {
         let source = preferences.values.cpuSource
@@ -403,8 +474,28 @@ final class MonitorStore: ObservableObject {
         return CoreUsage(index: -1, total: metrics.cpuTotal, user: metrics.cpuUser, system: metrics.cpuSystem)
     }
 
+    var selectedCPUAvailable: Bool {
+        let source = preferences.values.cpuSource
+        if source.hasPrefix("core:") { return metrics.has(.cores) && selectedCPU.index >= 0 }
+        return metrics.has(.cpu)
+    }
+
+    var selectedVolumeAvailable: Bool {
+        if preferences.values.diskSource == "startup" { return metrics.has(.disk) }
+        return metrics.has(.externalVolumes) && metrics.externalVolumes.contains {
+            $0.id == preferences.values.diskSource && $0.totalBytes > 0
+        }
+    }
+
+    var batteryPreviouslyPresent: Bool { lastSuccess[.batteryPower] != nil }
+    var processesPreviouslyAvailable: Bool { lastSuccess[.processes] != nil }
+
     var cpuSourceLabel: String {
-        selectedCPU.index < 0 ? L10n.tr("总体") : L10n.tr("核心 \(selectedCPU.index)")
+        let source = preferences.values.cpuSource
+        if source.hasPrefix("core:"), let index = Int(source.dropFirst(5)) {
+            return L10n.tr("核心 \(index)")
+        }
+        return L10n.tr("总体")
     }
 
     var selectedTemperature: Double? {
@@ -420,8 +511,12 @@ final class MonitorStore: ObservableObject {
     }
 
     var selectedVolume: ExternalVolume {
-        if let external = metrics.externalVolumes.first(where: { $0.id == preferences.values.diskSource }) { return external }
-        return ExternalVolume(id: "startup", name: metrics.volumeName, totalBytes: metrics.diskTotal, freeBytes: metrics.diskFree)
+        if preferences.values.diskSource != "startup" {
+            if let external = metrics.externalVolumes.first(where: { $0.id == preferences.values.diskSource }) { return external }
+            let path = preferences.values.diskSource
+            return ExternalVolume(id: path, name: URL(fileURLWithPath: path).lastPathComponent, totalBytes: 0, freeBytes: 0)
+        }
+        return ExternalVolume(id: "startup", name: metrics.has(.volumeName) ? metrics.volumeName : L10n.tr("不可用"), totalBytes: metrics.diskTotal, freeBytes: metrics.diskFree)
     }
 
     var selectedMemoryFree: UInt64 {
@@ -433,9 +528,11 @@ final class MonitorStore: ObservableObject {
         return min(100, Double(metrics.memoryTotal - min(selectedMemoryFree, metrics.memoryTotal)) / Double(metrics.memoryTotal) * 100)
     }
 
-    init() {
-        refresh()
-        schedule()
+    init(startSampling: Bool = true) {
+        if startSampling {
+            refresh()
+            schedule()
+        }
     }
 
     func setActive(_ active: Bool) {
@@ -457,6 +554,22 @@ final class MonitorStore: ObservableObject {
         schedule()
     }
 
+    func networkSourceChanged() {
+        var updated = metrics
+        updated.validFields.subtract([.network, .networkName, .networkSecurity])
+        updated.networkInterface = ""
+        updated.networkName = "网络"
+        updated.networkSecurity = ""
+        updated.networkSecurityStrong = nil
+        updated.downloadBytesPerSecond = 0
+        updated.uploadBytesPerSecond = 0
+        metrics = updated
+        lastSuccess.removeValue(forKey: .network)
+        lastSuccess.removeValue(forKey: .networkName)
+        lastSuccess.removeValue(forKey: .networkSecurity)
+        refresh()
+    }
+
     func refresh() {
         guard !isSampling && !isStopped else { return }
         isSampling = true
@@ -471,11 +584,23 @@ final class MonitorStore: ObservableObject {
                 guard let self else { return }
                 self.isSampling = false
                 guard !self.isStopped else { return }
-                self.metrics = sampled
-                self.trafficHistory.record(interface: sampled.networkInterface,
-                                           download: sampled.downloadedBytes,
-                                           upload: sampled.uploadedBytes)
-                self.recordHistory()
+                guard interface == self.preferences.values.networkInterface else {
+                    self.refresh()
+                    return
+                }
+                self.metrics = self.retainingRecentValues(
+                    from: sampled,
+                    previous: self.metrics,
+                    requestedInterface: interface,
+                    now: ProcessInfo.processInfo.systemUptime,
+                    lifetime: TimeInterval(self.preferences.values.failedSampleRetentionSeconds)
+                )
+                if sampled.has(.network) {
+                    self.trafficHistory.record(interface: sampled.networkInterface,
+                                               download: sampled.downloadedBytes,
+                                               upload: sampled.uploadedBytes)
+                }
+                self.recordHistory(fresh: sampled)
                 if self.pendingDetailRefresh {
                     self.pendingDetailRefresh = false
                     if !includeProcesses { self.refresh() }
@@ -484,14 +609,112 @@ final class MonitorStore: ObservableObject {
         }
     }
 
-    private func recordHistory() {
+    private func recordHistory(fresh: SystemMetrics) {
         if lastCPUSource != preferences.values.cpuSource {
             cpuHistory = Array(repeating: 0, count: 60)
             lastCPUSource = preferences.values.cpuSource
         }
-        append(selectedCPU.total, to: &cpuHistory)
-        append(metrics.downloadBytesPerSecond, to: &downloadHistory)
-        append(metrics.uploadBytesPerSecond, to: &uploadHistory)
+        if fresh.has(preferences.values.cpuSource == "overall" ? .cpu : .cores) {
+            append(selectedCPU.total, to: &cpuHistory)
+        }
+        if fresh.has(.network) {
+            append(metrics.downloadBytesPerSecond, to: &downloadHistory)
+            append(metrics.uploadBytesPerSecond, to: &uploadHistory)
+        }
+    }
+
+    func retainingRecentValues(from sampled: SystemMetrics, previous: SystemMetrics,
+                               requestedInterface: String, now: TimeInterval,
+                               lifetime: TimeInterval) -> SystemMetrics {
+        var merged = sampled
+        if lastRequestedNetworkInterface != requestedInterface {
+            lastSuccess.removeValue(forKey: .network)
+            lastSuccess.removeValue(forKey: .networkName)
+            lastSuccess.removeValue(forKey: .networkSecurity)
+            lastRequestedNetworkInterface = requestedInterface
+        }
+        if sampled.has(.network), sampled.networkInterface != previous.networkInterface {
+            lastSuccess.removeValue(forKey: .networkName)
+            lastSuccess.removeValue(forKey: .networkSecurity)
+        }
+        if sampled.has(.batteryPower), previous.has(.batteryPower),
+           (sampled.batteryOnAC != previous.batteryOnAC || sampled.batteryCharging != previous.batteryCharging) {
+            lastSuccess.removeValue(forKey: .batteryMinutes)
+        }
+        func retain(_ field: MetricField, copy: (inout SystemMetrics, SystemMetrics) -> Void) {
+            if sampled.has(field) {
+                lastSuccess[field] = now
+            } else if lifetime > 0,
+                      previous.has(field),
+                      let completed = lastSuccess[field],
+                      now - completed <= lifetime {
+                copy(&merged, previous)
+                merged.validFields.insert(field)
+            }
+        }
+        retain(.cpu) { output, old in
+            output.cpuTotal = old.cpuTotal; output.cpuUser = old.cpuUser; output.cpuSystem = old.cpuSystem
+        }
+        retain(.deviceName) { output, old in output.deviceName = old.deviceName }
+        retain(.volumeName) { output, old in output.volumeName = old.volumeName }
+        retain(.cores) { output, old in output.cpuCores = old.cpuCores }
+        retain(.memory) { output, old in
+            output.memoryTotal = old.memoryTotal; output.memoryFree = old.memoryFree
+            output.memoryImmediatelyFree = old.memoryImmediatelyFree; output.memoryActive = old.memoryActive
+            output.memoryWired = old.memoryWired; output.memoryCompressed = old.memoryCompressed
+        }
+        retain(.swap) { output, old in output.swapUsed = old.swapUsed }
+        retain(.disk) { output, old in
+            output.volumeName = old.volumeName; output.diskTotal = old.diskTotal; output.diskFree = old.diskFree
+        }
+        retain(.externalVolumes) { output, old in output.externalVolumes = old.externalVolumes }
+        if sampled.has(.externalVolumes) {
+            merged.externalVolumes = sampled.externalVolumes.map { volume in
+                if volume.totalBytes > 0 {
+                    volumeLastSuccess[volume.id] = now
+                    return volume
+                }
+                guard lifetime > 0,
+                      let old = previous.externalVolumes.first(where: { $0.id == volume.id }),
+                      let completed = volumeLastSuccess[volume.id],
+                      now - completed <= lifetime else { return volume }
+                return old
+            }
+            let mounted = Set(sampled.externalVolumes.map(\.id))
+            volumeLastSuccess = volumeLastSuccess.filter { mounted.contains($0.key) }
+        }
+        retain(.batteryPower) { output, old in
+            output.batteryPercent = old.batteryPercent
+            output.batteryCharging = old.batteryCharging; output.batteryOnAC = old.batteryOnAC
+        }
+        retain(.batteryMinutes) { output, old in output.batteryMinutes = old.batteryMinutes }
+        retain(.batteryCycles) { output, old in output.batteryCycles = old.batteryCycles }
+        retain(.batteryDesignCycles) { output, old in output.batteryDesignCycles = old.batteryDesignCycles }
+        retain(.batteryHealth) { output, old in output.batteryHealthPercent = old.batteryHealthPercent }
+        retain(.batteryTemperature) { output, old in output.batteryTemperature = old.batteryTemperature }
+        retain(.network) { output, old in
+            output.networkName = old.networkName; output.networkInterface = old.networkInterface
+            output.networkSecurity = old.networkSecurity; output.networkSecurityStrong = old.networkSecurityStrong
+            output.networkInterfaces = old.networkInterfaces
+            output.downloadBytesPerSecond = old.downloadBytesPerSecond
+            output.uploadBytesPerSecond = old.uploadBytesPerSecond
+        }
+        retain(.networkName) { output, old in output.networkName = old.networkName }
+        retain(.networkSecurity) { output, old in
+            output.networkSecurity = old.networkSecurity
+            output.networkSecurityStrong = old.networkSecurityStrong
+        }
+        retain(.processes) { output, old in output.processes = old.processes }
+        for reading in sampled.cpuTemperatures { sensorLastSuccess[reading.key] = now }
+        let currentKeys = Set(sampled.cpuTemperatures.map(\.key))
+        merged.cpuTemperatures += previous.cpuTemperatures.filter { reading in
+            guard !currentKeys.contains(reading.key), lifetime > 0,
+                  let completed = sensorLastSuccess[reading.key] else { return false }
+            return now - completed <= lifetime
+        }
+        sensorLastSuccess = sensorLastSuccess.filter { now - $0.value <= lifetime }
+        if !merged.cpuTemperatures.isEmpty { merged.validFields.insert(.cpuTemperature) }
+        return merged
     }
 
     func stop() {

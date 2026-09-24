@@ -86,6 +86,7 @@ struct PreferencesData: Codable {
     var memorySource = "available"
     var activeSamplingInterval = 5
     var idleSamplingInterval = 30
+    var failedSampleRetentionSeconds = 300
     var trafficWindowMinutes = 60
     var language = "system"
     var widgetVisibility: [String: Bool] = [:]
@@ -96,7 +97,7 @@ struct PreferencesData: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case theme, allowDragging, panelPositions, cpuSource, temperatureSource
-        case networkInterface, diskSource, memorySource, activeSamplingInterval, idleSamplingInterval, trafficWindowMinutes, language, widgetVisibility
+        case networkInterface, diskSource, memorySource, activeSamplingInterval, idleSamplingInterval, failedSampleRetentionSeconds, trafficWindowMinutes, language, widgetVisibility
     }
 
     init(from decoder: Decoder) throws {
@@ -111,6 +112,7 @@ struct PreferencesData: Codable {
         memorySource = try values.decodeIfPresent(String.self, forKey: .memorySource) ?? "available"
         activeSamplingInterval = max(2, try values.decodeIfPresent(Int.self, forKey: .activeSamplingInterval) ?? 5)
         idleSamplingInterval = max(10, try values.decodeIfPresent(Int.self, forKey: .idleSamplingInterval) ?? 30)
+        failedSampleRetentionSeconds = min(1800, max(0, try values.decodeIfPresent(Int.self, forKey: .failedSampleRetentionSeconds) ?? 300))
         trafficWindowMinutes = min(1440, max(5, try values.decodeIfPresent(Int.self, forKey: .trafficWindowMinutes) ?? 60))
         let savedLanguage = try values.decodeIfPresent(String.self, forKey: .language) ?? "system"
         language = L10n.supported.contains(savedLanguage) ? savedLanguage : "system"

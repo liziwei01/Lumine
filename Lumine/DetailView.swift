@@ -59,6 +59,21 @@ struct DetailView: View {
             if kind == .network && !shows(.networkSpeedTest) { speedTest.cancel() }
             layoutChanged()
         }
+        .onChange(of: preferences.values.failedSampleRetentionSeconds) { _ in
+            if kind == .disk {
+                let path = store.selectedVolume.id == "startup" ? "/" : store.selectedVolume.id
+                refreshDiskSupplement(path: path, force: true)
+            }
+        }
+        .onChange(of: store.selectedVolumeAvailable) { available in
+            guard kind == .disk else { return }
+            if available {
+                let path = store.selectedVolume.id == "startup" ? "/" : store.selectedVolume.id
+                refreshDiskSupplement(path: path, force: true)
+            } else {
+                diskSupplement.invalidateReadings()
+            }
+        }
         .alert(L10n.tr("清空废纸篓？"), isPresented: $confirmEmptyTrash) {
             Button(L10n.tr("清空"), role: .destructive) {
                 diskSupplement.emptyTrash(path: store.selectedVolume.id == "startup" ? "/" : store.selectedVolume.id)
@@ -90,11 +105,15 @@ struct DetailView: View {
                                  enabled: shows(.diskCategories))
     }
 
-    private func refreshDiskSupplement(path: String) {
+    private func refreshDiskSupplement(path: String, force: Bool = false) {
+        guard store.selectedVolumeAvailable else {
+            diskSupplement.invalidateReadings()
+            return
+        }
         let diagnostics = shows(.diskHealth) || shows(.diskTemperature)
         let trash = shows(.diskTrash)
         if diagnostics || trash {
-            diskSupplement.refresh(path: path, diagnostics: diagnostics, trash: trash)
+            diskSupplement.refresh(path: path, diagnostics: diagnostics, trash: trash, force: force)
         } else {
             diskSupplement.cancel()
         }
@@ -115,9 +134,9 @@ struct DetailView: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 16) {
                 RingChart(
-                    segments: [(store.selectedVolume.totalBytes > 0 ? Double(store.selectedVolume.freeBytes) / Double(store.selectedVolume.totalBytes) : 0, Palette.text)],
-                    main: MetricFormat.diskBytes(Double(store.selectedVolume.freeBytes)),
-                    subtitle: L10n.tr("可用空间\n(总共 \(MetricFormat.diskBytes(Double(store.selectedVolume.totalBytes))))"),
+                    segments: [(store.selectedVolumeAvailable && store.selectedVolume.totalBytes > 0 ? Double(store.selectedVolume.freeBytes) / Double(store.selectedVolume.totalBytes) : 0, Palette.text)],
+                    main: store.selectedVolumeAvailable ? MetricFormat.diskBytes(Double(store.selectedVolume.freeBytes)) : L10n.tr("不可用"),
+                    subtitle: L10n.tr("可用空间\n(总共 \(store.selectedVolumeAvailable ? MetricFormat.diskBytes(Double(store.selectedVolume.totalBytes)) : L10n.tr("不可用")))"),
                     mainColor: Palette.yellow
                 )
                 if shows(.diskCategories) {
@@ -161,14 +180,14 @@ struct DetailView: View {
                 HStack(spacing: 10) {
                     if shows(.diskHealth) {
                         insightCard(L10n.tr("运行状况"), icon: "heart.fill",
-                                    value: diskSupplement.diagnostics.healthPercent.map { "\($0)%" } ?? L10n.lookup(diskSupplement.diagnostics.healthLabel),
-                                    message: diskSupplement.diagnostics.healthMessage,
+                                    value: store.selectedVolumeAvailable ? (diskSupplement.diagnostics.healthPercent.map { "\($0)%" } ?? L10n.lookup(diskSupplement.diagnostics.healthLabel)) : L10n.tr("不可用"),
+                                    message: store.selectedVolumeAvailable ? diskSupplement.diagnostics.healthMessage : L10n.tr("不可用"),
                                     link: KnowledgeLink.diskHealth, accent: diskSupplement.diagnostics.healthLabel == "严重" ? Palette.coral : .white)
                     }
                     if shows(.diskTemperature) {
                         insightCard(L10n.tr("温度"), icon: "thermometer",
-                                    value: diskSupplement.diagnostics.temperatureCelsius.map { String(format: "%.0f°C", $0) } ?? L10n.tr("不可用"),
-                                    message: diskSupplement.diagnostics.temperatureMessage,
+                                    value: store.selectedVolumeAvailable ? (diskSupplement.diagnostics.temperatureCelsius.map { String(format: "%.0f°C", $0) } ?? L10n.tr("不可用")) : L10n.tr("不可用"),
+                                    message: store.selectedVolumeAvailable ? diskSupplement.diagnostics.temperatureMessage : L10n.tr("不可用"),
                                     link: KnowledgeLink.diskTemperature, accent: Palette.yellow, tone: 1)
                     }
                 }
@@ -187,7 +206,9 @@ struct DetailView: View {
                             }
                         }
                         .frame(height: 4)
-                        Text(L10n.tr("已使用：\(MetricFormat.diskBytes(Double(diskSupplement.trash.bytes)))（提醒阈值 2 GB）"))
+                        Text(store.selectedVolumeAvailable && diskSupplement.trashAvailable
+                             ? L10n.tr("已使用：\(MetricFormat.diskBytes(Double(diskSupplement.trash.bytes)))（提醒阈值 2 GB）")
+                             : L10n.tr("不可用"))
                             .font(.system(size: 11)).foregroundStyle(Palette.muted)
                         HStack {
                             if let notice = diskSupplement.trashNotice {
@@ -200,7 +221,7 @@ struct DetailView: View {
                             .buttonStyle(.plain)
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Palette.cyan)
-                            .disabled(diskSupplement.isEmptyingTrash || diskSupplement.isLoading || diskSupplement.trash.bytes == 0)
+                            .disabled(diskSupplement.isEmptyingTrash || diskSupplement.isLoading || !store.selectedVolumeAvailable || !diskSupplement.trashAvailable || diskSupplement.trash.bytes == 0)
                         }
                     }
                 }
@@ -208,8 +229,8 @@ struct DetailView: View {
             }
             if shows(.diskCapacity) {
                 HStack(spacing: 10) {
-                    infoCard(L10n.tr("已使用"), icon: "internaldrive", value: MetricFormat.diskBytes(Double(max(0, store.selectedVolume.totalBytes - store.selectedVolume.freeBytes))), note: L10n.tr("当前卷所占空间"))
-                    infoCard(L10n.tr("总容量"), icon: "square.stack.3d.up", value: MetricFormat.diskBytes(Double(store.selectedVolume.totalBytes)), note: L10n.tr("当前所选卷"), tone: 1)
+                    infoCard(L10n.tr("已使用"), icon: "internaldrive", value: store.selectedVolumeAvailable ? MetricFormat.diskBytes(Double(max(0, store.selectedVolume.totalBytes - store.selectedVolume.freeBytes))) : L10n.tr("不可用"), note: L10n.tr("当前卷所占空间"))
+                    infoCard(L10n.tr("总容量"), icon: "square.stack.3d.up", value: store.selectedVolumeAvailable ? MetricFormat.diskBytes(Double(store.selectedVolume.totalBytes)) : L10n.tr("不可用"), note: L10n.tr("当前所选卷"), tone: 1)
                 }
             }
             if shows(.diskExternal) && !m.externalVolumes.isEmpty {
@@ -236,13 +257,13 @@ struct DetailView: View {
             HStack(spacing: 16) {
                 RingChart(
                     segments: memorySegments,
-                    main: MetricFormat.bytes(Double(store.selectedMemoryFree), decimals: 2),
-                    subtitle: L10n.tr("可用空间\n共 \(MetricFormat.bytes(Double(m.memoryTotal), decimals: 0))")
+                    main: m.has(.memory) ? MetricFormat.bytes(Double(store.selectedMemoryFree), decimals: 2) : L10n.tr("不可用"),
+                    subtitle: L10n.tr("可用空间\n共 \(m.has(.memory) ? MetricFormat.bytes(Double(m.memoryTotal), decimals: 0) : L10n.tr("不可用"))")
                 )
                 VStack(alignment: .leading, spacing: 9) {
-                    legend(L10n.tr("活跃内存"), color: Palette.cyan, value: MetricFormat.bytes(Double(m.memoryActive)))
-                    legend(L10n.tr("联动内存"), color: Palette.blue, value: MetricFormat.bytes(Double(m.memoryWired)))
-                    legend(L10n.tr("压缩"), color: Palette.violet, value: MetricFormat.bytes(Double(m.memoryCompressed)))
+                    legend(L10n.tr("活跃内存"), color: Palette.cyan, value: m.has(.memory) ? MetricFormat.bytes(Double(m.memoryActive)) : L10n.tr("不可用"))
+                    legend(L10n.tr("联动内存"), color: Palette.blue, value: m.has(.memory) ? MetricFormat.bytes(Double(m.memoryWired)) : L10n.tr("不可用"))
+                    legend(L10n.tr("压缩"), color: Palette.violet, value: m.has(.memory) ? MetricFormat.bytes(Double(m.memoryCompressed)) : L10n.tr("不可用"))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -251,12 +272,12 @@ struct DetailView: View {
             if shows(.memoryPressure) || shows(.memorySwap) {
                 HStack(spacing: 10) {
                     if shows(.memoryPressure) {
-                        insightCard(L10n.tr("压力"), icon: "memorychip", value: MetricFormat.percent(m.memoryPressureEstimate),
+                        insightCard(L10n.tr("压力"), icon: "memorychip", value: m.has(.memory) ? MetricFormat.percent(m.memoryPressureEstimate) : L10n.tr("不可用"),
                                     message: memoryPressureMessage, link: KnowledgeLink.memoryPressure, accent: Palette.yellow)
                     }
                     if shows(.memorySwap) {
-                        insightCard(L10n.tr("交换分区"), icon: "externaldrive", value: MetricFormat.bytes(Double(m.swapUsed)),
-                                    message: m.swapUsed == 0 ? L10n.tr("没有使用磁盘交换空间。") : L10n.tr("虚拟内存占用了磁盘空间。"),
+                        insightCard(L10n.tr("交换分区"), icon: "externaldrive", value: m.has(.swap) ? MetricFormat.bytes(Double(m.swapUsed)) : L10n.tr("不可用"),
+                                    message: !m.has(.swap) ? L10n.tr("不可用") : (m.swapUsed == 0 ? L10n.tr("没有使用磁盘交换空间。") : L10n.tr("虚拟内存占用了磁盘空间。")),
                                     link: KnowledgeLink.memorySwap, tone: 1)
                     }
                 }
@@ -266,6 +287,7 @@ struct DetailView: View {
     }
 
     private var memoryPressureMessage: String {
+        guard m.has(.memory) else { return L10n.tr("不可用") }
         let pressure = m.memoryPressureEstimate
         if pressure >= 90 { return L10n.tr("内存压力估算已达临界，建议关闭占用较高的应用。") }
         if pressure >= 70 { return L10n.tr("考虑退出暂不使用的应用，减轻内存压力。") }
@@ -316,7 +338,7 @@ struct DetailView: View {
                 }
                 if shows(.batteryProcesses) { processSection(mode: .battery) }
             } else {
-                emptyState(icon: "battery.0percent", message: L10n.tr("这台 Mac 没有报告内置电池。"))
+                emptyState(icon: "battery.0percent", message: store.batteryPreviouslyPresent ? L10n.tr("不可用") : L10n.tr("这台 Mac 没有报告内置电池。"))
             }
         }
     }
@@ -342,9 +364,9 @@ struct DetailView: View {
                     HistoryChart(primary: store.cpuHistory, secondary: nil, primaryColor: Palette.blue, secondaryColor: Palette.coral, ceiling: 100)
                         .frame(height: 134)
                     VStack(alignment: .leading, spacing: 15) {
-                        legend(L10n.tr("可用"), color: Palette.purple, value: MetricFormat.percent(100 - store.selectedCPU.total))
-                        legend(L10n.tr("用户"), color: Palette.blue, value: MetricFormat.percent(store.selectedCPU.user))
-                        legend(L10n.tr("系统"), color: Palette.coral, value: MetricFormat.percent(store.selectedCPU.system))
+                        legend(L10n.tr("可用"), color: Palette.purple, value: store.selectedCPUAvailable ? MetricFormat.percent(100 - store.selectedCPU.total) : L10n.tr("不可用"))
+                        legend(L10n.tr("用户"), color: Palette.blue, value: store.selectedCPUAvailable ? MetricFormat.percent(store.selectedCPU.user) : L10n.tr("不可用"))
+                        legend(L10n.tr("系统"), color: Palette.coral, value: store.selectedCPUAvailable ? MetricFormat.percent(store.selectedCPU.system) : L10n.tr("不可用"))
                     }
                     .frame(width: 98, alignment: .leading)
                 }
@@ -394,8 +416,8 @@ struct DetailView: View {
                         HStack(spacing: 10) {
                             Image(systemName: "wifi").font(.system(size: 24))
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(m.networkName).font(.system(size: 14, weight: .bold))
-                                Text(m.networkInterface.isEmpty ? L10n.tr("未连接") : L10n.tr("接口 \(m.networkInterface)"))
+                                Text(m.has(.network) ? m.networkName : L10n.tr("不可用")).font(.system(size: 14, weight: .bold))
+                                Text(!m.has(.network) ? L10n.tr("不可用") : (m.networkInterface.isEmpty ? L10n.tr("未连接") : L10n.tr("接口 \(m.networkInterface)")))
                                     .font(.system(size: 11)).foregroundStyle(Palette.muted)
                             }
                             Spacer()
@@ -413,10 +435,10 @@ struct DetailView: View {
             if shows(.networkDownload) || shows(.networkUpload) {
                 HStack(spacing: 10) {
                     if shows(.networkDownload) {
-                        networkGraph(L10n.tr("下载"), total: networkTotals.download, speed: m.downloadBytesPerSecond, history: store.downloadHistory, color: Palette.blue, tone: 0)
+                        networkGraph(L10n.tr("下载"), total: m.has(.network) ? networkTotals.download : nil, speed: m.has(.network) ? m.downloadBytesPerSecond : nil, history: store.downloadHistory, color: Palette.blue, tone: 0)
                     }
                     if shows(.networkUpload) {
-                        networkGraph(L10n.tr("上传"), total: networkTotals.upload, speed: m.uploadBytesPerSecond, history: store.uploadHistory, color: Palette.coral, tone: 1)
+                        networkGraph(L10n.tr("上传"), total: m.has(.network) ? networkTotals.upload : nil, speed: m.has(.network) ? m.uploadBytesPerSecond : nil, history: store.uploadHistory, color: Palette.coral, tone: 1)
                     }
                 }
             }
@@ -429,6 +451,7 @@ struct DetailView: View {
     }
 
     private var networkSecurityMessage: String {
+        guard m.has(.network) else { return L10n.tr("不可用") }
         guard !m.networkInterface.isEmpty else { return L10n.tr("当前没有可用的网络连接。") }
         let security = L10n.lookup(m.networkSecurity)
         if let strong = m.networkSecurityStrong {
@@ -437,15 +460,15 @@ struct DetailView: View {
         return L10n.tr("当前使用 \(m.networkSecurity.isEmpty ? m.networkInterface : security)。")
     }
 
-    private func networkGraph(_ name: String, total: UInt64, speed: Double, history: [Double], color: Color, tone: Double) -> some View {
+    private func networkGraph(_ name: String, total: UInt64?, speed: Double?, history: [Double], color: Color, tone: Double) -> some View {
         MetricCard(selected: false, tone: tone) {
             VStack(alignment: .leading, spacing: 7) {
                 Text(name).font(.system(size: 13, weight: .bold))
                 HStack {
-                    Text(MetricFormat.diskBytes(Double(total)))
+                    Text(total.map { MetricFormat.diskBytes(Double($0)) } ?? L10n.tr("不可用"))
                         .help(L10n.tr("最近 \(preferences.values.trafficWindowMinutes) 分钟的累计\(name)流量"))
                     Spacer(minLength: 2)
-                    Text(MetricFormat.speed(speed))
+                    Text(speed.map(MetricFormat.speed) ?? L10n.tr("不可用"))
                 }
                 .font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
                 HistoryChart(primary: history, secondary: nil, primaryColor: color, secondaryColor: color, ceiling: max(history.max() ?? 0, 1024))
@@ -510,7 +533,7 @@ struct DetailView: View {
             if shows(.devicesExternal) {
                 sectionTitle(L10n.tr("外置驱动器"))
                 if m.externalVolumes.isEmpty {
-                    Text(L10n.tr("连接后，外部存储设备会在这里显示。"))
+                    Text(m.has(.externalVolumes) ? L10n.tr("连接后，外部存储设备会在这里显示。") : L10n.tr("不可用"))
                         .font(.system(size: 12)).foregroundStyle(Palette.muted)
                         .frame(maxWidth: .infinity, minHeight: 65)
                 } else {
@@ -526,7 +549,7 @@ struct DetailView: View {
                 Image(systemName: "externaldrive.fill").font(.system(size: 20))
                 VStack(alignment: .leading, spacing: 4) {
                     Text(volume.name).font(.system(size: 13, weight: .bold))
-                    Text(L10n.tr("可用 \(MetricFormat.diskBytes(Double(volume.freeBytes))) · 共 \(MetricFormat.diskBytes(Double(volume.totalBytes)))"))
+                    Text(L10n.tr("可用 \(volume.totalBytes > 0 ? MetricFormat.diskBytes(Double(volume.freeBytes)) : L10n.tr("不可用")) · 共 \(volume.totalBytes > 0 ? MetricFormat.diskBytes(Double(volume.totalBytes)) : L10n.tr("不可用"))"))
                         .font(.system(size: 11)).foregroundStyle(Palette.muted)
                 }
                 Spacer()
@@ -548,7 +571,8 @@ struct DetailView: View {
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(Palette.muted)
             if ranked.isEmpty {
-                Text(L10n.tr("正在获取进程数据…")).font(.system(size: 11)).foregroundStyle(Palette.muted)
+                Text(m.has(.processes) ? L10n.tr("当前没有可见进程。") : (store.processesPreviouslyAvailable ? L10n.tr("不可用") : L10n.tr("正在获取进程数据…")))
+                    .font(.system(size: 11)).foregroundStyle(Palette.muted)
             }
             ForEach(ranked) { process in
                 HStack(spacing: 9) {

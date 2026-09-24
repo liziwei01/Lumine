@@ -211,7 +211,6 @@
 "总体平均" = "Promedio general";
 "逻辑核心 {0}" = "Núcleo lógico {0}";
 "CPU 温度" = "temperatura de la CPU";
-"SMC 是未公开的硬件传感器接口；此机型无法读取时显示不可用。" = "SMC es una interfaz de sensor de hardware no revelada; se muestra como no disponible cuando este modelo no puede leerlo.";
 "平均温度" = "temperatura promedio";
 "最高温度" = "temperatura máxima";
 "不显示温度" = "Sin visualización de temperatura";
@@ -302,3 +301,13 @@
 "强度设为 0 可关闭圆环光晕。" = "Ajusta la intensidad a 0 para desactivar el resplandor del anillo.";
 "文件类别扫描" = "Análisis de categorías de archivos";
 "打开磁盘详情只读取缓存。点击“重新扫描”才开始扫描所选卷。" = "Al abrir los detalles del disco solo se lee la caché. Haz clic en «Volver a escanear» para analizar el volumen seleccionado.";
+"读取失败时保留旧值" = "Conservar el último valor si falla la lectura";
+"仅在临时读取失败时沿用同一来源的上次有效值；到期后显示不可用。正常的零值和断开连接立即更新。" = "Solo se usa el último valor válido de la misma fuente cuando falla una lectura. Tras el plazo se muestra «No disponible». Los ceros reales y las desconexiones se actualizan de inmediato.";
+"保留时间" = "Conservar durante";
+"立即失效" = "Caducar de inmediato";
+"1 分钟" = "1 minuto";
+"5 分钟" = "5 minutos";
+"10 分钟" = "10 minutos";
+"30 分钟" = "30 minutos";
+"当前没有可见进程。" = "No hay procesos visibles.";
+"SMC 是未公开的硬件传感器接口；读取失败会先保留上次温度，超过保留时间后显示不可用。" = "SMC es una interfaz de sensores no documentada. Si falla una lectura, se conserva la temperatura anterior hasta que venza el plazo.";

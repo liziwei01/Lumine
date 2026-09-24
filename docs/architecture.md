@@ -36,13 +36,15 @@ LumineApp / AppDelegate
 
 `SystemSampler` 不依赖界面。它读取单次系统快照，CPU 与网络速率由相邻快照的差值计算。`MonitorStore` 在主线程发布原始数值和近 60 次图表样本，并将网络收发差值写入按分钟聚合的历史；界面仅负责呈现。可分别设置面板打开和关闭时的采样间隔，默认 5 秒和 30 秒，修改后立即重排定时器。系统采样在串行后台队列执行，避免主线程等待硬件接口；已有采样未完成时跳过重复触发。进程排行仅在 CPU/内存/电池详情且对应组件可见时、最多每 10 秒运行一次 `ps`，其余时候不启动子进程。光柱作为三段渐变融入六点背景，绘制切片最多 128 条，减少每次刷新产生的绘制指令。
 
+采样结果为每组自动更新的指标标记本次是否有效；零使用率、零速率、空设备列表和断网是有效结果，不能按“读取失败”缓存。`MonitorStore` 为 CPU、逐核心、内存、交换空间、卷容量、外置卷、各项电池读数、网络和进程列表分别记录最近成功时间；CPU 温度以传感器键分别记录。读取失败时保留同一数据源的旧值，默认最多 5 分钟，设置可选立即过期至 30 分钟；保留旧值不推进成功时间，也不重复累计网络流量。超过期限后该项变为不可用。切换网络接口或磁盘卷时不沿用其他来源的数据；正常断网、移除外置卷、进程列表变空则立即显示新状态。时间使用进程运行时长，不受系统时钟调整影响。手动文件类别扫描的持久化结果和用户触发的网速测试属于带时间点的独立快照，不伪装成连续采样。
+
 `Localization` 使用 App 包内的 `Localizable.strings`，提供简体中文、繁体中文、英语、日语、俄语、韩语、西班牙语。`PreferencesData.language` 保存 `system` 或明确的语言代码；`system` 根据 macOS 首选语言列表匹配第一个受支持的语言，匹配失败回退简体中文。语言选择更新时，三个 SwiftUI 根视图从 `PreferencesStore` 收到通知并重绘；设置窗口标题和菜单栏提示另由 AppKit 更新。源文案是稳定的简体中文 key；带插值的文案使用位置参数模板，避免不同语言词序受 Swift 插值限制。扫描结果、配置标识、缓存和采样线程只保存与语言无关的数据；呈现时再翻译。日期和数值使用所选语言对应的 Locale。运行时只读包内资源，不调用在线翻译服务；后续可按资源文件继续添加语言。
 
 `DiskCategoryStore` 与详情窗口分离：菜单栏 App 启动后只加载用户 Application Support 目录中的逐卷分类缓存，不启动文件遍历，也不安装定时扫描器。展开磁盘详情和切换所选卷只读取相应缓存。只有用户点击详情中的“重新扫描”才在后台开始遍历；“停止”取消本次扫描。隐藏文件类别组件或退出时取消正在运行的扫描。详情显示最近完成时间和扫描进度。旧版本保存的扫描周期设置不再使用。
 
 扫描过程中保留旧缓存供详情显示，进度只更新扫描状态；只有完整扫描结束才原子写入缓存，取消或失败不会覆盖已有结果。切换卷或退出时取消旧扫描。普通 CPU、内存等监控采样绝不触发全盘遍历。分类规则优先按位置识别桌面、文稿、下载和应用程序，其他可读取文件归入“其他”。统计取文件实际分配大小，遇到无法读取的目录继续扫描并标记结果不完整。启动卷扫描跳过 `/System/Volumes/Data` 这个重复入口和其他挂载卷。APFS 克隆、快照和系统保留空间可能使文件枚举之和与卷占用不相等，界面明确分别呈现两种口径，不伪造“其他”补足差值。
 
-`DiskSupplementStore` 只在磁盘详情打开且对应组件可见时于后台读取系统 `diskutil info -plist` 中的 SMART 字段：`PERCENTAGE_USED` 转为寿命估算 `100 - used`，`TEMPERATURE` 兼容开尔文与摄氏读数，`SMARTStatus` 和 `AVAILABLE_SPARE`/阈值辅助判断状态。缺少键时显示“不可用”，不从 CPU 温度推断磁盘温度。结果缓存一分钟；废纸篓组件可见时按需枚举当前用户（或所选卷）的废纸篓目录，只统计大小。状态文案采用 MacPaw 官方公开阈值：磁盘余量低于 10% 警告、健康度低于 70% 警告、磁盘温度 51–70°C 警告、71°C 起严重。CPU 温度低于 56°C 为白色，56–75°C 黄色，76°C 起红色。参照页面是内容依据，不随 App 分发第三方图片或代码。各“了解更多”按钮打开相应官方网页。
+`DiskSupplementStore` 只在磁盘详情打开且对应组件可见时于后台读取系统 `diskutil info -plist` 中的 SMART 字段：`PERCENTAGE_USED` 转为寿命估算 `100 - used`，`TEMPERATURE` 兼容开尔文与摄氏读数，`SMARTStatus` 和 `AVAILABLE_SPARE`/阈值辅助判断状态。各字段沿用相同的可配置失效时间；新采集缺少键时先保留尚未过期的旧字段，不从 CPU 温度推断磁盘温度。详情打开时每分钟重试一次，关闭后停止。废纸篓组件可见时按需枚举当前用户（或所选卷）的废纸篓目录，只统计大小；完整读到的零用量立即生效，枚举失败才沿用旧用量。状态文案采用 MacPaw 官方公开阈值：磁盘余量低于 10% 警告、健康度低于 70% 警告、磁盘温度 51–70°C 警告、71°C 起严重。CPU 温度低于 56°C 为白色，56–75°C 黄色，76°C 起红色。参照页面是内容依据，不随 App 分发第三方图片或代码。各“了解更多”按钮打开相应官方网页。
 
 ## 数据来源与语义
 
@@ -60,7 +62,7 @@ LumineApp / AppDelegate
 | 外置存储 | `FileManager.mountedVolumeURLs`、卷资源属性 | 只列已挂载的外置卷，不宣称发现全部蓝牙/USB 外设。 |
 | 进程排行 | 系统 `ps` 命令 | 展示当前可见进程的 RSS 和 CPU 百分比；用户点击“关闭”后核对身份并请求正常退出。电池排行以 `%cpu` 作为耗电活动量近似，不能声称是 macOS 的真实逐进程功耗。 |
 
-Apple Silicon 上 CPU 温度没有稳定公开的无特权 API。CleanMyMac 的公开文档确认非 App Store 版本可显示温度，但未公开实现；开源监控工具使用 SMC/HID 传感器。Lumine 只读 SMC，不安装提权 helper。失败时明确显示不可用，不显示虚构温度。电池健康度是容量比例的估算值，与 macOS 设置中的健康状态判断不完全相同。
+Apple Silicon 上 CPU 温度没有稳定公开的无特权 API。CleanMyMac 的公开文档确认非 App Store 版本可显示温度，但未公开实现；开源监控工具使用 SMC/HID 传感器。Lumine 只读 SMC，不安装提权 helper。SMC 完全读不到时每 30 秒尝试重新连接；短暂失败显示同一传感器仍在保留期内的真实旧读数，过期后显示不可用，不显示虚构温度。电池健康度是容量比例的估算值，与 macOS 设置中的健康状态判断不完全相同。
 
 参考文案与阈值依据：MacPaw 官方的[磁盘空间](https://macpaw.com/support/cleanmymac/knowledgebase/available-disk-space)、[磁盘健康](https://macpaw.com/support/cleanmymac/knowledgebase/disk-health)、[磁盘温度](https://macpaw.com/support/cleanmymac/knowledgebase/disk-temperature)、[内存压力](https://macpaw.com/support/cleanmymac/knowledgebase/ram-pressure)、[电池健康](https://macpaw.com/support/cleanmymac/knowledgebase/battery-health)、[电池温度](https://macpaw.com/support/cleanmymac/knowledgebase/battery-temperature)、[CPU 温度](https://macpaw.com/support/cleanmymac/knowledgebase/cpu-temperature)、[运行时间](https://macpaw.com/support/cleanmymac/knowledgebase/mac-uptime)和[网络安全](https://macpaw.com/support/cleanmymac/knowledgebase/network-connection-security)页面。Lumine 不复用第三方图片或原文段落。“了解更多”按组件主题指向这些官方页面。内存压力百分比是 Lumine 的物理页估算，无法声称与 CleanMyMac 的私有算法相同；总览健康描述也只覆盖本项目实际采集到的指标。
 

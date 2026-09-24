@@ -56,6 +56,7 @@ struct DiskDiagnostics {
 struct TrashUsage {
     var bytes: UInt64 = 0
     var unreadable = 0
+    var isComplete = false
 }
 
 struct TrashEmptyResult {
@@ -96,7 +97,10 @@ enum DiskSupplementCollector {
     static func trash(path: String, cancelled: () -> Bool) -> TrashUsage {
         let trashURL = trashURL(path: path)
         var result = TrashUsage()
-        if !FileManager.default.fileExists(atPath: trashURL.path) { return result }
+        if !FileManager.default.fileExists(atPath: trashURL.path) {
+            result.isComplete = true
+            return result
+        }
         let keys: [URLResourceKey] = [.isRegularFileKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .fileSizeKey]
         guard let enumerator = FileManager.default.enumerator(at: trashURL, includingPropertiesForKeys: keys, errorHandler: { _, _ in
             result.unreadable += 1
@@ -106,10 +110,19 @@ enum DiskSupplementCollector {
             return result
         }
         for case let url as URL in enumerator {
-            if cancelled() { break }
-            guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { continue }
-            result.bytes += UInt64(max(0, values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? values.fileSize ?? 0))
+            if cancelled() { return result }
+            guard let values = try? url.resourceValues(forKeys: Set(keys)) else {
+                result.unreadable += 1
+                continue
+            }
+            guard values.isRegularFile == true else { continue }
+            guard let size = values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? values.fileSize else {
+                result.unreadable += 1
+                continue
+            }
+            result.bytes += UInt64(max(0, size))
         }
+        result.isComplete = result.unreadable == 0
         return result
     }
 
@@ -137,6 +150,7 @@ final class DiskSupplementStore: ObservableObject {
 
     @Published private(set) var diagnostics = DiskDiagnostics()
     @Published private(set) var trash = TrashUsage()
+    @Published private(set) var trashAvailable = false
     @Published private(set) var isLoading = false
     @Published private(set) var isEmptyingTrash = false
     @Published private var trashOutcome: TrashEmptyResult?
@@ -149,41 +163,125 @@ final class DiskSupplementStore: ObservableObject {
     private var rootPath = ""
     private var collectedDiagnostics = false
     private var collectedTrash = false
-    private var lastUpdate: Date?
+    private var lastUpdate: TimeInterval?
+    private var diagnosticLastSuccess: [String: TimeInterval] = [:]
+    private var trashLastSuccess: TimeInterval?
+    private var timer: Timer?
     private var task: Task<Void, Never>?
     private var generation = 0
 
     func refresh(path: String, diagnostics includeDiagnostics: Bool, trash includeTrash: Bool, force: Bool = false) {
+        let now = ProcessInfo.processInfo.systemUptime
         if !force && rootPath == path && collectedDiagnostics == includeDiagnostics && collectedTrash == includeTrash &&
-            (isLoading || lastUpdate.map { Date().timeIntervalSince($0) < 60 } == true) { return }
+            (isLoading || lastUpdate.map { now - $0 < 60 } == true) {
+            scheduleRefresh(path: path, diagnostics: includeDiagnostics, trash: includeTrash)
+            return
+        }
         cancel()
+        if rootPath != path {
+            diagnostics = DiskDiagnostics()
+            trash = TrashUsage()
+            trashAvailable = false
+            diagnosticLastSuccess = [:]
+            trashLastSuccess = nil
+        }
         rootPath = path
         trashOutcome = nil
         collectedDiagnostics = includeDiagnostics
         collectedTrash = includeTrash
-        diagnostics = DiskDiagnostics()
-        trash = TrashUsage()
         isLoading = true
+        scheduleRefresh(path: path, diagnostics: includeDiagnostics, trash: includeTrash)
         let currentGeneration = generation
         task = Task.detached(priority: .utility) { [weak self] in
             let diagnostics = includeDiagnostics ? DiskSupplementCollector.diagnostics(path: path) : DiskDiagnostics()
             let trash = includeTrash ? DiskSupplementCollector.trash(path: path, cancelled: { Task.isCancelled }) : TrashUsage()
             await MainActor.run { [weak self] in
                 guard let self, self.generation == currentGeneration else { return }
-                self.diagnostics = diagnostics
-                self.trash = trash
+                let now = ProcessInfo.processInfo.systemUptime
+                if includeDiagnostics { self.diagnostics = self.retainingDiagnostics(diagnostics, now: now) }
+                if includeTrash {
+                    if trash.isComplete {
+                        self.trash = trash
+                        self.trashAvailable = true
+                        self.trashLastSuccess = now
+                    } else if let completed = self.trashLastSuccess,
+                              now - completed <= TimeInterval(PreferencesStore.shared.values.failedSampleRetentionSeconds) {
+                        self.trashAvailable = true
+                    } else {
+                        self.trash = TrashUsage()
+                        self.trashAvailable = false
+                    }
+                }
                 self.isLoading = false
-                self.lastUpdate = Date()
+                self.lastUpdate = now
                 self.task = nil
             }
         }
     }
 
     func cancel() {
+        timer?.invalidate()
+        timer = nil
         task?.cancel()
         task = nil
         generation += 1
         isLoading = false
+    }
+
+    func invalidateReadings() {
+        cancel()
+        diagnostics = DiskDiagnostics()
+        trash = TrashUsage()
+        trashAvailable = false
+        diagnosticLastSuccess = [:]
+        trashLastSuccess = nil
+        lastUpdate = nil
+    }
+
+    private func scheduleRefresh(path: String, diagnostics: Bool, trash: Bool) {
+        guard timer == nil else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                if self.isLoading {
+                    self.expireCachedValues()
+                    return
+                }
+                self.refresh(path: path, diagnostics: diagnostics, trash: trash, force: true)
+            }
+        }
+    }
+
+    private func expireCachedValues() {
+        let now = ProcessInfo.processInfo.systemUptime
+        let lifetime = TimeInterval(PreferencesStore.shared.values.failedSampleRetentionSeconds)
+        guard lifetime > 0 else { return }
+        if collectedDiagnostics { diagnostics = retainingDiagnostics(DiskDiagnostics(), now: now) }
+        if collectedTrash, let completed = trashLastSuccess, now - completed > lifetime {
+            trash = TrashUsage()
+            trashAvailable = false
+        }
+    }
+
+    private func retainingDiagnostics(_ fresh: DiskDiagnostics, now: TimeInterval) -> DiskDiagnostics {
+        let prior = diagnostics
+        let lifetime = TimeInterval(PreferencesStore.shared.values.failedSampleRetentionSeconds)
+        func value<T>(_ key: String, _ current: T?, _ old: T?) -> T? {
+            if let current {
+                diagnosticLastSuccess[key] = now
+                return current
+            }
+            guard lifetime > 0, let old, let completed = diagnosticLastSuccess[key],
+                  now - completed <= lifetime else { return nil }
+            return old
+        }
+        return DiskDiagnostics(
+            smartStatus: value("smart", fresh.smartStatus, prior.smartStatus),
+            healthPercent: value("health", fresh.healthPercent, prior.healthPercent),
+            temperatureCelsius: value("temperature", fresh.temperatureCelsius, prior.temperatureCelsius),
+            availableSpare: value("spare", fresh.availableSpare, prior.availableSpare),
+            availableSpareThreshold: value("threshold", fresh.availableSpareThreshold, prior.availableSpareThreshold)
+        )
     }
 
     func emptyTrash(path: String) {
@@ -197,7 +295,11 @@ final class DiskSupplementStore: ObservableObject {
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.isEmptyingTrash = false
-                if self.rootPath == path { self.trash = current }
+                if self.rootPath == path {
+                    self.trash = current
+                    self.trashAvailable = current.isComplete
+                    self.trashLastSuccess = current.isComplete ? ProcessInfo.processInfo.systemUptime : nil
+                }
                 self.trashOutcome = outcome
             }
         }

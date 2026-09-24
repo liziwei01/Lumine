@@ -211,7 +211,6 @@
 "总体平均" = "Overall average";
 "逻辑核心 {0}" = "Logical core {0}";
 "CPU 温度" = "CPU temperature";
-"SMC 是未公开的硬件传感器接口；此机型无法读取时显示不可用。" = "SMC is an undisclosed hardware sensor interface; it is displayed as unavailable when this model cannot read it.";
 "平均温度" = "average temperature";
 "最高温度" = "maximum temperature";
 "不显示温度" = "Hide temperature";
@@ -302,3 +301,13 @@
 "强度设为 0 可关闭圆环光晕。" = "Set intensity to 0 to turn off the ring glow.";
 "文件类别扫描" = "File category scan";
 "打开磁盘详情只读取缓存。点击“重新扫描”才开始扫描所选卷。" = "Opening disk details only reads the cache. Click “Rescan” to scan the selected volume.";
+"读取失败时保留旧值" = "Keep last value on read failure";
+"仅在临时读取失败时沿用同一来源的上次有效值；到期后显示不可用。正常的零值和断开连接立即更新。" = "Use the last valid value from the same source only when a read fails. Show unavailable after the retention period. Real zeros and disconnections update immediately.";
+"保留时间" = "Keep for";
+"立即失效" = "Expire immediately";
+"1 分钟" = "1 minute";
+"5 分钟" = "5 minutes";
+"10 分钟" = "10 minutes";
+"30 分钟" = "30 minutes";
+"当前没有可见进程。" = "No visible processes.";
+"SMC 是未公开的硬件传感器接口；读取失败会先保留上次温度，超过保留时间后显示不可用。" = "SMC is an undocumented hardware sensor interface. A failed read keeps the last temperature until the retention period expires.";
