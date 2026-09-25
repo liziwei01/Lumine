@@ -25,10 +25,12 @@ struct DiskDiagnostics {
     }
 
     var temperatureMessage: String {
-        guard let temperatureCelsius else { return L10n.tr("当前无法获取此磁盘的温度。") }
-        if temperatureCelsius >= 71 { return L10n.tr("磁盘温度过高，请尽快让设备降温。") }
-        if temperatureCelsius >= 51 { return L10n.tr("磁盘开始升温，建议注意散热。") }
-        return L10n.tr("当前温度在理想工作范围内。")
+        switch TemperatureStatus.disk(temperatureCelsius) {
+        case .critical: L10n.tr("磁盘温度过高，请尽快让设备降温。")
+        case .warning: L10n.tr("磁盘开始升温，建议注意散热。")
+        case .normal: L10n.tr("当前温度在理想工作范围内。")
+        case .unavailable: L10n.tr("当前无法获取此磁盘的温度。")
+        }
     }
 
     private var spareIsCritical: Bool {

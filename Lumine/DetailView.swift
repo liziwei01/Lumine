@@ -205,9 +205,10 @@ struct DetailView: View {
                     }
                     if shows(.diskTemperature) {
                         insightCard(L10n.tr("温度"), icon: "thermometer",
-                                    value: store.selectedVolumeAvailable ? (diskSupplement.diagnostics.temperatureCelsius.map { String(format: "%.0f°C", $0) } ?? L10n.tr("不可用")) : L10n.tr("不可用"),
+                                    value: store.selectedVolumeAvailable ? (TemperatureStatus.label(diskSupplement.diagnostics.temperatureCelsius) ?? L10n.tr("不可用")) : L10n.tr("不可用"),
                                     message: store.selectedVolumeAvailable ? diskSupplement.diagnostics.temperatureMessage : L10n.tr("不可用"),
-                                    link: KnowledgeLink.diskTemperature, accent: Palette.yellow, tone: 1)
+                                    link: KnowledgeLink.diskTemperature,
+                                    accent: temperatureColor(TemperatureStatus.disk(store.selectedVolumeAvailable ? diskSupplement.diagnostics.temperatureCelsius : nil)), tone: 1)
                     }
                 }
             }
@@ -351,8 +352,9 @@ struct DetailView: View {
                                         message: batteryHealthMessage, link: KnowledgeLink.batteryHealth, accent: Palette.mint)
                         }
                         if shows(.batteryTemperature) {
-                            insightCard(L10n.tr("温度"), icon: "thermometer", value: m.batteryTemperature.map { String(format: "%.0f°C", $0) } ?? L10n.tr("不可用"),
-                                        message: batteryTemperatureMessage, link: KnowledgeLink.batteryTemperature, accent: Palette.yellow, tone: 1)
+                            insightCard(L10n.tr("温度"), icon: "thermometer", value: TemperatureStatus.label(m.batteryTemperature) ?? L10n.tr("不可用"),
+                                        message: batteryTemperatureMessage, link: KnowledgeLink.batteryTemperature,
+                                        accent: temperatureColor(TemperatureStatus.battery(m.batteryTemperature)), tone: 1)
                         }
                     }
                 }
@@ -371,10 +373,24 @@ struct DetailView: View {
     }
 
     private var batteryTemperatureMessage: String {
-        guard let temperature = m.batteryTemperature else { return L10n.tr("目前无法读取电池温度。") }
-        if temperature < 10 { return L10n.tr("电池温度偏低，建议移至温暖环境。") }
-        if temperature >= 35 { return L10n.tr("电池温度偏高，请注意散热。") }
-        return L10n.tr("电池温度处于理想范围。")
+        switch TemperatureStatus.battery(m.batteryTemperature) {
+        case .warning:
+            return (m.batteryTemperature ?? 0) < 10
+                ? L10n.tr("电池温度偏低，建议移至温暖环境。")
+                : L10n.tr("电池温度偏高，请注意散热。")
+        case .normal: return L10n.tr("电池温度处于理想范围。")
+        case .unavailable: return L10n.tr("目前无法读取电池温度。")
+        case .critical: return L10n.tr("电池温度偏高，请注意散热。")
+        }
+    }
+
+    private func temperatureColor(_ status: TemperatureStatus) -> Color {
+        switch status {
+        case .normal: Palette.text
+        case .warning: Palette.yellow
+        case .critical: Palette.coral
+        case .unavailable: Palette.muted
+        }
     }
 
     private var cpuContent: some View {
