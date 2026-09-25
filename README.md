@@ -39,7 +39,7 @@ codesign --force --sign - --timestamp=none build/Build/Products/Release/Lumine.a
 
 ## 数据说明
 
-日常监控数据由 macOS 本地接口、文件资源属性或系统自带的 `ps` 命令读取，不上传。CPU 与网络速率根据相邻采样计数器的差值计算。网络总量按分钟聚合并保存在本机；首次运行只能统计启动后的流量。CPU/内存/电池进程排行仅在对应详情打开时采集，最多每 10 秒运行一次 `ps`；电池排行用 CPU 活动量近似，不等于系统逐进程功耗。点击“关闭”会先核对进程身份，再请求正常退出，可能导致未保存的数据丢失。测速只在点击后经 HTTPS 使用 [Cloudflare Speedtest](https://github.com/cloudflare/speedtest) 的公开端点，约传输 28 MB，不自动运行。内存占用比例是根据物理页计算的估算值。CPU 温度尝试通过只读 AppleSMC 传感器获取；这是 Apple 未承诺稳定性的硬件接口，持续读不到且超过设置的保留时间后显示“不可用”。Wi-Fi 名称受 macOS 隐私权限限制时可能显示通用名称“Wi-Fi”。外设列表只包含已挂载的本地外置存储卷。
+日常监控数据由 macOS 本地接口、文件资源属性或系统自带的 `ps` 命令读取，不上传。CPU 与网络速率根据相邻采样计数器的差值计算。网络总量按分钟聚合并保存在本机；首次运行只能统计启动后的流量。CPU/内存/电池进程排行仅在对应详情打开时采集，最多每 10 秒运行一次 `ps`；电池排行用 CPU 活动量近似，不等于系统逐进程功耗。点击“关闭”会先核对进程身份，再请求正常退出，可能导致未保存的数据丢失。测速只在点击后经 HTTPS 使用 [Cloudflare Speedtest](https://github.com/cloudflare/speedtest) 的公开端点，约传输 28 MB，不自动运行。内存占用比例是根据物理页计算的估算值。Apple Silicon 的 CPU 温度优先从本机 HID 温度传感器读取，缺少专用核心传感器时显示 SoC 晶片温度；HID 不可用时尝试只读 AppleSMC。电池温度从电池注册表中的电池组数据读取。这些温度接口未获 Apple 公共 SDK 稳定性保证，持续读不到且超过设置的保留时间后显示“不可用”。Wi-Fi 名称受 macOS 隐私权限限制时可能显示通用名称“Wi-Fi”。外设列表只包含已挂载的本地外置存储卷。
 
 架构与指标定义见 [架构设计](docs/architecture.md)。SMC 协议和传感器键的来源与许可见 [第三方声明](THIRD_PARTY_NOTICES.md)。`scripts/make_icon.swift` 可重新生成原创图标。开发者的参考截图留在公开 Git 仓库之外，不纳入源码或发布包。
 

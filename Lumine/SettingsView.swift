@@ -422,7 +422,7 @@ struct SettingsView: View {
                         }
                     }
                 }
-                sourceGroup(L10n.tr("CPU 温度"), note: L10n.tr("SMC 是未公开的硬件传感器接口；读取失败会先保留上次温度，超过保留时间后显示不可用。")) {
+                sourceGroup(L10n.tr("CPU 温度"), note: L10n.tr("HID/SMC 温度传感器接口未公开；读取失败会先保留上次温度，超过保留时间后显示不可用。")) {
                     Picker(L10n.tr("显示"), selection: binding(\.temperatureSource)) {
                         Text(L10n.tr("平均温度")).tag("average")
                         Text(L10n.tr("最高温度")).tag("hottest")

@@ -27,7 +27,8 @@ LumineApp / AppDelegate
   ├─ MonitorStore                  定时采样、历史序列、展示模型
   │    └─ SystemSampler            系统 API 采样与差值计算
   ├─ PreferencesStore              持久化配色、来源和面板坐标
-  ├─ SMCReader                     尝试读取 CPU 温度传感器
+  ├─ HIDTemperatureReader          Apple Silicon 温度传感器，运行时探测私有符号
+  ├─ SMCReader                     HID 不可用时尝试读取 CPU 温度传感器
   └─ SwiftUI Views
        ├─ OverviewView             总览卡片
        ├─ DetailView               详情路由
@@ -58,13 +59,13 @@ LumineApp / AppDelegate
 | 文件类别 | `FileManager.enumerator`、`totalFileAllocatedSizeKey` | 用户点击后才后台遍历所选卷，逐卷持久化已完成结果；详情打开时只读取缓存和当前进度。 |
 | 磁盘运行状况/温度 | 系统 `diskutil info -plist` SMART 字段 | 仅在磁盘详情打开时读取并缓存；健康百分比是剩余寿命估算，不保证与 CleanMyMac 算法完全一致。 |
 | 废纸篓 | `FileManager.enumerator`、`totalFileAllocatedSizeKey` | 按需统计本用户废纸篓文件分配大小；确认后可逐项删除并报告失败。 |
-| 电池 | `IOPSCopyPowerSourcesInfo`、`AppleSmartBattery` IORegistry | 电量、电源状态、剩余时间、循环次数；健康度由充满容量与设计容量估算。缺失时显示不可用。 |
+| 电池 | `IOPSCopyPowerSourcesInfo`、`AppleSmartBattery` / `AppleSmartBatteryPack` IORegistry | 电量、电源状态、剩余时间、循环次数；健康度由充满容量与设计容量估算。温度优先读取电池注册表中的直接值或 `BatteryData.Temperature`。缺失时显示不可用。 |
 | 网络 | `getifaddrs` 的 `if_data` 字节计数、`CWWiFiClient` | 当前活跃接口的上下行速率、最近时间窗收发总量和 Wi-Fi 名称；测速按点击才向 Cloudflare 传输数据。 |
-| CPU 温度 | `AppleSMC` 用户客户端的只读传感器键 | 尝试读取当前机型可用的 CPU 传感器；平均值、最高值或指定传感器可选。接口和键未经 Apple 公共 SDK 保证，失败时显示不可用。 |
+| CPU 温度 | Apple Silicon 的 `IOHIDEventSystemClient` 温度服务，后备为 `AppleSMC` 只读传感器键 | HID 优先使用专用 CPU 核心传感器；没有专用核心时使用 PMU `tdie` 晶片温度，不将校准传感器 `tcal` 伪装成 CPU 温度。同名传感器合并；平均值、最高值或指定传感器可选。私有接口和传感器名称未经 Apple 公共 SDK 保证。 |
 | 外置存储 | `FileManager.mountedVolumeURLs`、卷资源属性 | 只列已挂载的外置卷，不宣称发现全部蓝牙/USB 外设。 |
 | 进程排行 | 系统 `ps` 命令 | 展示当前可见进程的 RSS 和 CPU 百分比；用户点击“关闭”后核对身份并请求正常退出。电池排行以 `%cpu` 作为耗电活动量近似，不能声称是 macOS 的真实逐进程功耗。 |
 
-Apple Silicon 上 CPU 温度没有稳定公开的无特权 API。CleanMyMac 的公开文档确认非 App Store 版本可显示温度，但未公开实现；开源监控工具使用 SMC/HID 传感器。Lumine 只读 SMC，不安装提权 helper。SMC 完全读不到时每 30 秒尝试重新连接；短暂失败显示同一传感器仍在保留期内的真实旧读数，过期后显示不可用，不显示虚构温度。电池健康度是容量比例的估算值，与 macOS 设置中的健康状态判断不完全相同。
+Apple Silicon 上 CPU 温度没有稳定公开的无特权 API。CleanMyMac 的公开文档确认非 App Store 版本可显示温度，但未公开实现；开源监控工具使用 SMC/HID 传感器。Lumine 在采样队列上创建并复用只读 HID 客户端；HID 无有效 CPU 温度时每 30 秒尝试 SMC 后备，避免在主线程创建 SMC 连接后跨线程读取。两路都没有有效温度时，短暂失败显示同一传感器仍在保留期内的真实旧读数，过期后显示不可用，不显示虚构温度。电池健康度是容量比例的估算值，与 macOS 设置中的健康状态判断不完全相同。
 
 参考文案与阈值依据：MacPaw 官方的[磁盘空间](https://macpaw.com/support/cleanmymac/knowledgebase/available-disk-space)、[磁盘健康](https://macpaw.com/support/cleanmymac/knowledgebase/disk-health)、[磁盘温度](https://macpaw.com/support/cleanmymac/knowledgebase/disk-temperature)、[内存压力](https://macpaw.com/support/cleanmymac/knowledgebase/ram-pressure)、[电池健康](https://macpaw.com/support/cleanmymac/knowledgebase/battery-health)、[电池温度](https://macpaw.com/support/cleanmymac/knowledgebase/battery-temperature)、[CPU 温度](https://macpaw.com/support/cleanmymac/knowledgebase/cpu-temperature)、[运行时间](https://macpaw.com/support/cleanmymac/knowledgebase/mac-uptime)和[网络安全](https://macpaw.com/support/cleanmymac/knowledgebase/network-connection-security)页面。Lumine 不复用第三方图片或原文段落。“了解更多”按组件主题指向这些官方页面。内存压力百分比是 Lumine 的物理页估算，无法声称与 CleanMyMac 的私有算法相同；总览健康描述也只覆盖本项目实际采集到的指标。
 

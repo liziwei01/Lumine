@@ -1,8 +1,8 @@
 # 第三方技术参考与许可
 
-Lumine 的 AppleSMC 只读协议布局和 CPU 传感器键映射参考了以下 MIT 许可项目。未打包这些项目的二进制或其他源码文件。
+Lumine 的 AppleSMC 只读协议布局、CPU 传感器键映射及 Apple Silicon HID 温度服务的读取方式参考了以下 MIT 许可项目。未打包这些项目的二进制或其他源码文件。
 
-- [SiliconScope](https://github.com/kennss/SiliconScope)：SMC 读取协议、M1–M5 传感器键。Copyright (c) 2026 Kennt Kim (Calida Lab).
+- [SiliconScope](https://github.com/kennss/SiliconScope)：SMC 读取协议、M1–M5 传感器键、HID 温度服务的使用方法。Copyright (c) 2026 Kennt Kim (Calida Lab).
 - [Stats](https://github.com/exelban/stats)：Apple Silicon 传感器键表的上游参考。Copyright (c) Serhiy Mytrovtsiy and contributors.
 - [SMCKit](https://github.com/beltex/SMCKit)：AppleSMC 参数结构与只读命令的历史参考。Copyright (c) 2014–2017 beltex.
 

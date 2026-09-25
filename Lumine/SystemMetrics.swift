@@ -104,7 +104,8 @@ final class SystemSampler: @unchecked Sendable {
     private var previousNetwork: [String: NetworkCounters] = [:]
     private var previousTime: TimeInterval?
     private lazy var modelName = cpuModelName()
-    private var smcReader = SMCReader()
+    private var hidTemperatureReader: HIDTemperatureReader?
+    private var nextHIDAttempt: TimeInterval = 0
     private var nextSMCAttempt: TimeInterval = 0
     private var lastProcessSample: TimeInterval = 0
 
@@ -119,15 +120,19 @@ final class SystemSampler: @unchecked Sendable {
         result.cpuName = modelName
         sampleCPU(into: &result)
         sampleCores(into: &result)
-        if smcReader == nil && result.uptime >= nextSMCAttempt {
-            smcReader = SMCReader()
-            nextSMCAttempt = result.uptime + 30
+        if result.cpuName.contains("Apple M") {
+            if hidTemperatureReader == nil && result.uptime >= nextHIDAttempt {
+                hidTemperatureReader = HIDTemperatureReader()
+                nextHIDAttempt = result.uptime + 30
+            }
+            result.cpuTemperatures = hidTemperatureReader?.cpuTemperatures() ?? []
         }
-        result.cpuTemperatures = smcReader?.cpuTemperatures(model: result.cpuName) ?? []
-        if result.cpuTemperatures.isEmpty, smcReader != nil {
-            smcReader?.close()
-            smcReader = nil
-            nextSMCAttempt = result.uptime + 30
+        if result.cpuTemperatures.isEmpty, result.uptime >= nextSMCAttempt {
+            // Keep the AppleSMC connection on the sampling thread that uses it.
+            let reader = SMCReader()
+            result.cpuTemperatures = reader?.cpuTemperatures(model: result.cpuName) ?? []
+            reader?.close()
+            if result.cpuTemperatures.isEmpty { nextSMCAttempt = result.uptime + 30 }
         }
         sampleMemory(into: &result)
         sampleDisk(into: &result)
@@ -147,8 +152,7 @@ final class SystemSampler: @unchecked Sendable {
     }
 
     func stop() {
-        smcReader?.close()
-        smcReader = nil
+        hidTemperatureReader = nil
     }
 
     private func cpuModelName() -> String {
@@ -321,30 +325,48 @@ final class SystemSampler: @unchecked Sendable {
 
     private func sampleBatteryRegistry(into result: inout SystemMetrics) {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
-        guard service != IO_OBJECT_NULL else { return }
-        defer { IOObjectRelease(service) }
+        if service != IO_OBJECT_NULL {
+            defer { IOObjectRelease(service) }
+            func value(_ key: String) -> Any? {
+                IORegistryEntryCreateCFProperty(service, key as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue()
+            }
+            result.batteryCycles = (value("CycleCount") as? NSNumber)?.intValue
+            if result.batteryCycles != nil { result.validFields.insert(.batteryCycles) }
+            result.batteryDesignCycles = (value("DesignCycleCount9C") as? NSNumber)?.intValue
+            if result.batteryDesignCycles != nil { result.validFields.insert(.batteryDesignCycles) }
+            result.batteryTemperature = Self.batteryTemperature(from: service)
+            if result.batteryTemperature != nil { result.validFields.insert(.batteryTemperature) }
+            if let data = value("BatteryData") as? [String: Any],
+               let full = data["FullChargeCapacity"] as? NSNumber,
+               let design = data["DesignCapacity"] as? NSNumber,
+               full.doubleValue > 0, design.doubleValue > 0 {
+                result.batteryHealthPercent = min(100, full.doubleValue / design.doubleValue * 100)
+                result.validFields.insert(.batteryHealth)
+            }
+        }
+        if result.batteryTemperature == nil {
+            let pack = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBatteryPack"))
+            if pack != IO_OBJECT_NULL {
+                defer { IOObjectRelease(pack) }
+                result.batteryTemperature = Self.batteryTemperature(from: pack)
+                if result.batteryTemperature != nil { result.validFields.insert(.batteryTemperature) }
+            }
+        }
+    }
 
+    private static func batteryTemperature(from service: io_registry_entry_t) -> Double? {
         func value(_ key: String) -> Any? {
             IORegistryEntryCreateCFProperty(service, key as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue()
         }
-        result.batteryCycles = (value("CycleCount") as? NSNumber)?.intValue
-        if result.batteryCycles != nil { result.validFields.insert(.batteryCycles) }
-        result.batteryDesignCycles = (value("DesignCycleCount9C") as? NSNumber)?.intValue
-        if result.batteryDesignCycles != nil { result.validFields.insert(.batteryDesignCycles) }
-        if let raw = (value("Temperature") as? NSNumber)?.doubleValue {
+        let direct = value("Temperature") as? NSNumber
+        let nested = (value("BatteryData") as? [String: Any])?["Temperature"] as? NSNumber
+        if let raw = (direct ?? nested)?.doubleValue {
             let temperature = raw > 1000 ? raw / 100 : raw
             if (0...80).contains(temperature) {
-                result.batteryTemperature = temperature
-                result.validFields.insert(.batteryTemperature)
+                return temperature
             }
         }
-        if let data = value("BatteryData") as? [String: Any],
-           let full = data["FullChargeCapacity"] as? NSNumber,
-           let design = data["DesignCapacity"] as? NSNumber,
-           full.doubleValue > 0, design.doubleValue > 0 {
-            result.batteryHealthPercent = min(100, full.doubleValue / design.doubleValue * 100)
-            result.validFields.insert(.batteryHealth)
-        }
+        return nil
     }
 
     private func sampleNetwork(into result: inout SystemMetrics, preferredInterface: String) {
@@ -707,7 +729,9 @@ final class MonitorStore: ObservableObject {
         retain(.processes) { output, old in output.processes = old.processes }
         for reading in sampled.cpuTemperatures { sensorLastSuccess[reading.key] = now }
         let currentKeys = Set(sampled.cpuTemperatures.map(\.key))
+        let currentUsesHID = sampled.cpuTemperatures.first?.key.hasPrefix("HID:")
         merged.cpuTemperatures += previous.cpuTemperatures.filter { reading in
+            if let currentUsesHID, reading.key.hasPrefix("HID:") != currentUsesHID { return false }
             guard !currentKeys.contains(reading.key), lifetime > 0,
                   let completed = sensorLastSuccess[reading.key] else { return false }
             return now - completed <= lifetime

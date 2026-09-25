@@ -310,7 +310,7 @@
 "10 分钟" = "10 minutes";
 "30 分钟" = "30 minutes";
 "当前没有可见进程。" = "No visible processes.";
-"SMC 是未公开的硬件传感器接口；读取失败会先保留上次温度，超过保留时间后显示不可用。" = "SMC is an undocumented hardware sensor interface. A failed read keeps the last temperature until the retention period expires.";
+"HID/SMC 温度传感器接口未公开；读取失败会先保留上次温度，超过保留时间后显示不可用。" = "HID/SMC temperature sensor interfaces are undocumented. A failed read keeps the last temperature until the retention period expires.";
 "通用" = "General";
 "通用设置" = "General settings";
 "启动" = "Startup";
