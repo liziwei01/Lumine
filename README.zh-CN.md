@@ -14,6 +14,11 @@ Lumine 是原生桌面系统监控工具：macOS 版驻留菜单栏，Windows �
 <p><img src="docs/images/overview.png" width="446" alt="系统总览（macOS）"></p>
 </details>
 
+<details>
+<summary>Windows 总览（Windows CI 截图）</summary>
+<p><img src="docs/images/windows.png" width="490" alt="Windows 总览（Windows CI 截图）"></p>
+</details>
+
 ## 下载
 
 从 [GitHub Releases](https://github.com/liziwei01/Lumine/releases/latest) 下载：macOS 通用版（Apple Silicon 与 Intel）、Windows x64 或 Windows ARM64。解压后运行；Windows 包含运行时。macOS App 使用临时签名，未经公证；Windows 包未签名。
@@ -60,7 +65,7 @@ dotnet publish windows/Lumine.Windows -c Release -r win-x64 --self-contained tru
 
 运行 `dist/windows-x64/Lumine.exe`，保留输出目录中的全部文件。ARM 设备将 `win-x64` 改为 `win-arm64`。关闭窗口会收起到系统托盘，点击托盘图标重新打开，选择“退出”才停止监控。设置保存在 `%LOCALAPPDATA%\Lumine\settings.json`。不需要管理员权限、驱动或后台服务。
 
-[构建工作流](.github/workflows/build.yml)会构建两个平台，并生成 Windows x64／ARM64 产物；x64 冒烟检查会采集真实 Windows 指标并导出 WPF 截图。本次已在 macOS 交叉编译，Windows 运行验收仍需以 Windows CI 或真机结果为准。详见 [Windows 实现说明（英文）](docs/windows.md)。
+[构建工作流](.github/workflows/build.yml)会构建两个平台，并生成 Windows x64／ARM64 产物；x64 冒烟检查会采集真实 Windows 指标并导出 WPF 截图。Windows x64 已通过 [Windows CI](https://github.com/liziwei01/Lumine/actions/runs/40080001959) 的实际系统采样与 WPF 渲染验证；ARM64 已编译，尚未在 ARM 真机验证。详见 [Windows 实现说明（英文）](docs/windows.md)。
 
 ## 数据与隐私
 

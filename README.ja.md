@@ -14,6 +14,11 @@ Lumine はネイティブのシステムモニターです。macOS ではメニ�
 <p><img src="docs/images/overview.png" width="446" alt="システム概要（macOS）"></p>
 </details>
 
+<details>
+<summary>Windows ダッシュボード（Windows CI の画像）</summary>
+<p><img src="docs/images/windows.png" width="490" alt="Windows ダッシュボード（Windows CI の画像）"></p>
+</details>
+
 ## ダウンロード
 
 [GitHub Releases](https://github.com/liziwei01/Lumine/releases/latest) から macOS ユニバーサル版（Apple Silicon／Intel）、Windows x64、Windows ARM64 をダウンロードできます。解凍してから実行してください。Windows 版はランタイムを含みます。macOS 版は一時署名のみで未公証、Windows 版は未署名です。
@@ -60,7 +65,7 @@ dotnet publish windows/Lumine.Windows -c Release -r win-x64 --self-contained tru
 
 出力フォルダー全体を保持し、`dist/windows-x64/Lumine.exe` を実行してください。ARM では `win-arm64` を指定します。ウィンドウを閉じるとトレイに格納され、アイコンをクリックすると再表示されます。「終了」で監視を停止します。設定は `%LOCALAPPDATA%\Lumine\settings.json` に保存されます。管理者権限、ドライバー、常駐サービスは不要です。
 
-[ビルドワークフロー](.github/workflows/build.yml)は両プラットフォームをビルドし、Windows x64／ARM64 の成果物を生成します。x64 のスモークテストでは Windows の実測値を取得し、WPF の画像を出力します。今回の変更は macOS 上でクロスコンパイル済みですが、Windows での動作確認は Windows CI または実機の結果で判断してください。[Windows 実装の説明（英語）](docs/windows.md)。
+[ビルドワークフロー](.github/workflows/build.yml)は両プラットフォームをビルドし、Windows x64／ARM64 の成果物を生成します。x64 のスモークテストでは Windows の実測値を取得し、WPF の画像を出力します。Windows x64 のシステム情報取得と WPF 描画は [Windows CI](https://github.com/liziwei01/Lumine/actions/runs/40080001959) で検証済みです。ARM64 はビルド済みですが、ARM 実機では未検証です。[Windows 実装の説明（英語）](docs/windows.md)。
 
 ## データとプライバシー
 

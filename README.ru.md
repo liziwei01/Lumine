@@ -14,6 +14,11 @@ Lumine — нативный монитор системы: в строке ме�
 <p><img src="docs/images/overview.png" width="446" alt="Обзор системы (macOS)"></p>
 </details>
 
+<details>
+<summary>Панель Windows (снимок из Windows CI)</summary>
+<p><img src="docs/images/windows.png" width="490" alt="Панель Windows (снимок из Windows CI)"></p>
+</details>
+
 ## Скачать
 
 Пакеты доступны в [GitHub Releases](https://github.com/liziwei01/Lumine/releases/latest): универсальный macOS (Apple Silicon и Intel), Windows x64 и Windows ARM64. Распакуйте архив перед запуском; Windows включает среду выполнения. macOS использует временную подпись без нотариализации; пакеты Windows не подписаны.
@@ -60,7 +65,7 @@ dotnet publish windows/Lumine.Windows -c Release -r win-x64 --self-contained tru
 
 Запустите `dist/windows-x64/Lumine.exe`, сохранив все файлы выходной папки. Для ARM используйте `win-arm64`. Закрытие окна сворачивает приложение в трей; нажатие значка открывает его снова. Команда «Выход» завершает мониторинг. Настройки: `%LOCALAPPDATA%\Lumine\settings.json`. Права администратора, драйверы и фоновая служба не нужны.
 
-[Рабочий процесс сборки](.github/workflows/build.yml) собирает обе платформы и создаёт артефакты Windows x64/ARM64. Проверка x64 считывает реальные показатели Windows и сохраняет снимок WPF. Изменение проверено кросс-компиляцией на macOS; запуск в Windows ещё должен быть подтверждён заданием Windows CI или реальной машиной. [Технические заметки Windows (англ.)](docs/windows.md).
+[Рабочий процесс сборки](.github/workflows/build.yml) собирает обе платформы и создаёт артефакты Windows x64/ARM64. Проверка x64 считывает реальные показатели Windows и сохраняет снимок WPF. Нативный опрос и рендеринг WPF для Windows x64 прошли проверку в [Windows CI](https://github.com/liziwei01/Lumine/actions/runs/40080001959). ARM64 собран, но ещё не запускался на ARM-оборудовании. [Технические заметки Windows (англ.)](docs/windows.md).
 
 ## Данные и конфиденциальность
 

@@ -14,6 +14,11 @@ Lumine is a native desktop system monitor: a menu bar app on macOS and a system 
 <p><img src="docs/images/overview.png" width="446" alt="System overview (macOS)"></p>
 </details>
 
+<details>
+<summary>Windows dashboard (Windows CI screenshot)</summary>
+<p><img src="docs/images/windows.png" width="490" alt="Windows dashboard (Windows CI screenshot)"></p>
+</details>
+
 ## Download
 
 Download the portable packages from [GitHub Releases](https://github.com/liziwei01/Lumine/releases/latest): macOS universal (Apple Silicon and Intel), Windows x64, or Windows ARM64. Extract the archive before launching; Windows packages include the runtime. The macOS app is ad hoc signed, not notarized, and Windows packages are unsigned.
@@ -64,7 +69,7 @@ dotnet publish windows/Lumine.Windows -c Release -r win-x64 --self-contained tru
 
 Run `dist/windows-x64/Lumine.exe`. Keep the entire output folder together. Use `win-arm64` for Windows on ARM. Closing the window hides it to the notification area; click the tray icon to reopen it, or choose **Quit** to stop monitoring. Settings persist under `%LOCALAPPDATA%\Lumine\settings.json`. No administrator privileges, drivers or background service are required.
 
-The [build workflow](.github/workflows/build.yml) builds both platforms and produces Windows x64/ARM64 artifacts. Its x64 smoke test samples real Windows metrics and exports a WPF screenshot. This change was cross-compiled on macOS; Windows runtime validation must be confirmed by that Windows job or a Windows machine. See the [Windows implementation notes](docs/windows.md).
+The [build workflow](.github/workflows/build.yml) builds both platforms and produces Windows x64/ARM64 artifacts. Its x64 smoke test samples real Windows metrics and exports a WPF screenshot. Windows x64 native sampling and WPF rendering have passed in [Windows CI](https://github.com/liziwei01/Lumine/actions/runs/40080001959); ARM64 is compiled but has not been run on ARM hardware. See the [Windows implementation notes](docs/windows.md).
 
 ## Data and privacy
 

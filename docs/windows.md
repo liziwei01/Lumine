@@ -40,6 +40,8 @@ Manual Windows acceptance checks:
 5. Open another instance, then Quit the original; ensure there are no remaining Lumine processes or tray icons.
 6. Check display scaling, keyboard focus and multi-monitor behavior on the target hardware.
 
+The v1.1.0 application code passed these x64 native sampling and WPF rendering checks in [Windows CI](https://github.com/liziwei01/Lumine/actions/runs/40080001959). The exported image is included in the README; this verifies basic startup/sampling/rendering, not all manual acceptance checks above.
+
 ## Remove
 
 Choose Quit, delete the portable app folder, and optionally delete `%LOCALAPPDATA%\Lumine`. There are no registry startup entries or services to remove.
