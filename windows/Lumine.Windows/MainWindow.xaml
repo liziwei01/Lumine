@@ -1,0 +1,15 @@
+<Window x:Class="Lumine.Windows.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="Lumine" Width="490" Height="700" MinWidth="440" MinHeight="500" ShowInTaskbar="False" WindowStartupLocation="CenterScreen" FontFamily="Segoe UI" Foreground="#FAF8FF">
+ <Window.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#38207E" Offset="0"/><GradientStop Color="#0A0644" Offset="1"/></LinearGradientBrush></Window.Background>
+ <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="20">
+  <TextBlock Text="Lumine" FontSize="30" FontWeight="SemiBold"/>
+  <TextBlock x:Name="Subtitle" Foreground="#C9C4DC" Margin="0,4,0,18"/>
+  <UniformGrid x:Name="Cards" Columns="2"/>
+  <Border Background="#302164" CornerRadius="12" Padding="16" Margin="4,16,4,12"><StackPanel>
+    <TextBlock x:Name="DetailTitle" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8"/>
+    <TextBlock x:Name="DetailText" Foreground="#C9C4DC"/>
+  </StackPanel></Border>
+  <TextBlock x:Name="Status" Foreground="#C9C4DC" Margin="4,4,4,12"/>
+  <WrapPanel><Button x:Name="SettingsButton" Click="SettingsClick"/><Button x:Name="HideButton" Click="HideClick"/><Button x:Name="QuitButton" Click="QuitClick"/></WrapPanel>
+ </StackPanel></ScrollViewer>
+</Window>

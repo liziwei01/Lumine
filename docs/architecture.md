@@ -1,4 +1,6 @@
-# Lumine 架构设计
+# Lumine macOS 架构设计
+
+本文描述 Swift/macOS 实现。新增的 Windows 原生托盘版采用 .NET/WPF，功能范围、指标来源和构建方式见 [Windows 实现说明](windows.md)。
 
 ## 目标与范围
 
