@@ -494,6 +494,8 @@ final class SystemSampler: @unchecked Sendable {
 final class MonitorStore: ObservableObject {
     @Published private(set) var metrics = SystemMetrics()
     @Published private(set) var gpuHistory: [Double] = []
+    @Published private(set) var gpuRendererHistory: [Double] = []
+    @Published private(set) var gpuTilerHistory: [Double] = []
     private var lastGPUIdentity: String?
     private var gpuLastSuccess: [String: [String: TimeInterval]] = [:]
     @Published private(set) var cpuHistory: [Double] = Array(repeating: 0, count: 60)
@@ -610,6 +612,8 @@ final class MonitorStore: ObservableObject {
 
     func gpuSourceChanged() {
         gpuHistory = []
+        gpuRendererHistory = []
+        gpuTilerHistory = []
         lastGPUIdentity = nil
         refresh()
     }
@@ -669,19 +673,26 @@ final class MonitorStore: ObservableObject {
         }
     }
 
-    private func recordHistory(fresh: SystemMetrics) {
-        let identity = preferences.values.gpuSource + ":" + (selectedGPU?.id ?? "unavailable")
+    // Only fresh driver samples enter the graph; retained labels do not extend a trace.
+    func recordGPUHistory(fresh: SystemMetrics, selected: GPUUsage?, source: String) {
+        let identity = source + ":" + (selected?.id ?? "unavailable")
         if lastGPUIdentity != identity {
             gpuHistory = []
+            gpuRendererHistory = []
+            gpuTilerHistory = []
             lastGPUIdentity = identity
         }
-        if fresh.has(.gpus), let gpu = selectedGPU,
-           let utilization = fresh.gpus.first(where: { $0.id == gpu.id })?.utilization {
-            append(utilization, to: &gpuHistory)
-        } else {
-            // A gap must not appear as idle GPU activity or a continuous fresh trace.
-            gpuHistory = []
-        }
+        let reading = fresh.has(.gpus) ? fresh.gpus.first(where: { $0.id == selected?.id }) : nil
+        if let value = reading?.utilization { append(value, to: &gpuHistory) }
+        else { gpuHistory = [] }
+        if let value = reading?.renderer { append(value, to: &gpuRendererHistory) }
+        else { gpuRendererHistory = [] }
+        if let value = reading?.tiler { append(value, to: &gpuTilerHistory) }
+        else { gpuTilerHistory = [] }
+    }
+
+    private func recordHistory(fresh: SystemMetrics) {
+        recordGPUHistory(fresh: fresh, selected: selectedGPU, source: preferences.values.gpuSource)
         if lastCPUSource != preferences.values.cpuSource {
             cpuHistory = Array(repeating: 0, count: 60)
             lastCPUSource = preferences.values.cpuSource

@@ -345,3 +345,5 @@
 "在完全磁盘访问权限中添加并启用 Lumine，然后退出并重新打开 App。" = "Add and enable Lumine in Full Disk Access, then quit and reopen the app. If access still fails after an update despite the switch being on, remove the old entry and add the current app again.";
 "选择废纸篓文件夹…" = "Choose Trash Folder…";
 "在访达中显示 Lumine" = "Show Lumine in Finder";
+
+"蓝色实线：使用率；红色长虚线：渲染；青色短虚线：平铺。数值相同时曲线可能重叠。" = "Solid blue: utilization; long red dashes: renderer; short cyan dashes: tiler. Lines may overlap when values match.";

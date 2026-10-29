@@ -345,3 +345,5 @@
 "在完全磁盘访问权限中添加并启用 Lumine，然后退出并重新打开 App。" = "Añade y activa Lumine en Acceso total al disco; después cierra y vuelve a abrir la app. Si tras actualizar no puede leer aunque el interruptor esté activado, elimina la entrada anterior y añade de nuevo la app actual.";
 "选择废纸篓文件夹…" = "Elegir carpeta Papelera…";
 "在访达中显示 Lumine" = "Mostrar Lumine en Finder";
+
+"蓝色实线：使用率；红色长虚线：渲染；青色短虚线：平铺。数值相同时曲线可能重叠。" = "Azul continuo: uso; trazos rojos largos: renderizado; trazos cian cortos: mosaico. Las líneas pueden superponerse si los valores coinciden.";

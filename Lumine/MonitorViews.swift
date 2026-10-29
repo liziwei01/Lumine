@@ -445,6 +445,12 @@ struct HistoryChart: View {
     let primaryColor: Color
     let secondaryColor: Color
     let ceiling: Double
+    var tertiary: [Double]? = nil
+    var tertiaryColor: Color = .cyan
+    var secondaryDash: [CGFloat] = []
+    var tertiaryDash: [CGFloat] = [2, 3]
+
+    private var sampleCount: Int { max(primary.count, secondary?.count ?? 0, tertiary?.count ?? 0) }
 
     var body: some View {
         GeometryReader { geometry in
@@ -471,11 +477,19 @@ struct HistoryChart: View {
                     area(secondary, in: geometry.size, limit: ceiling)
                         .fill(LinearGradient(colors: [secondaryColor.opacity(0.28), secondaryColor.opacity(0.02)], startPoint: .top, endPoint: .bottom))
                 }
+                if let tertiary {
+                    area(tertiary, in: geometry.size, limit: ceiling)
+                        .fill(LinearGradient(colors: [tertiaryColor.opacity(0.16), tertiaryColor.opacity(0.01)], startPoint: .top, endPoint: .bottom))
+                }
                 line(primary, in: geometry.size, limit: ceiling)
                     .stroke(primaryColor, style: StrokeStyle(lineWidth: 1.4, lineJoin: .round))
                 if let secondary {
                     line(secondary, in: geometry.size, limit: ceiling)
-                        .stroke(secondaryColor, style: StrokeStyle(lineWidth: 1.4, lineJoin: .round))
+                        .stroke(secondaryColor, style: StrokeStyle(lineWidth: 1.4, lineJoin: .round, dash: secondaryDash))
+                }
+                if let tertiary {
+                    line(tertiary, in: geometry.size, limit: ceiling)
+                        .stroke(tertiaryColor, style: StrokeStyle(lineWidth: 1.4, lineJoin: .round, dash: tertiaryDash))
                 }
             }
         }
@@ -485,7 +499,7 @@ struct HistoryChart: View {
         var path = Path()
         guard values.count > 1 else { return path }
         for (index, value) in values.enumerated() {
-            let x = size.width * CGFloat(index) / CGFloat(values.count - 1)
+            let x = size.width * CGFloat(sampleCount - values.count + index) / CGFloat(max(1, sampleCount - 1))
             let y = size.height * (1 - CGFloat(min(max(value / max(limit, 1), 0), 1)))
             if index == 0 { path.move(to: CGPoint(x: x, y: y)) }
             else { path.addLine(to: CGPoint(x: x, y: y)) }
@@ -497,7 +511,8 @@ struct HistoryChart: View {
         var path = line(values, in: size, limit: limit)
         guard values.count > 1 else { return path }
         path.addLine(to: CGPoint(x: size.width, y: size.height))
-        path.addLine(to: CGPoint(x: 0, y: size.height))
+        let startX = size.width * CGFloat(sampleCount - values.count) / CGFloat(max(1, sampleCount - 1))
+        path.addLine(to: CGPoint(x: startX, y: size.height))
         path.closeSubpath()
         return path
     }

@@ -432,10 +432,15 @@ struct DetailView: View {
             }
             if shows(.gpuChart) {
                 HStack(alignment: .top, spacing: 18) {
-                    HistoryChart(primary: store.gpuHistory, secondary: nil, primaryColor: Palette.blue, secondaryColor: Palette.coral, ceiling: 100)
+                    HistoryChart(primary: store.gpuHistory, secondary: store.gpuRendererHistory,
+                                 primaryColor: Palette.blue, secondaryColor: Palette.coral, ceiling: 100,
+                                 tertiary: store.gpuTilerHistory, tertiaryColor: Palette.cyan, secondaryDash: [5, 3])
+                        .help(L10n.tr("蓝色实线：使用率；红色长虚线：渲染；青色短虚线：平铺。数值相同时曲线可能重叠。"))
                         .frame(height: 134)
                         .overlay {
-                            if store.selectedGPU?.utilization == nil { Text(L10n.tr("不可用")).foregroundStyle(Palette.muted) }
+                            if [store.selectedGPU?.utilization, store.selectedGPU?.renderer, store.selectedGPU?.tiler].allSatisfy({ $0 == nil }) {
+                                Text(L10n.tr("不可用")).foregroundStyle(Palette.muted)
+                            }
                         }
                     VStack(alignment: .leading, spacing: 15) {
                         legend(L10n.tr("使用率"), color: Palette.blue, value: store.selectedGPU?.utilization.map(MetricFormat.percent) ?? L10n.tr("不可用"))

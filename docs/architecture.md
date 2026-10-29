@@ -53,7 +53,7 @@ LumineApp / AppDelegate
 
 | 指标 | 来源 | 说明 |
 | --- | --- | --- |
-| GPU | IORegistry 的 `IOAccelerator`、`PerformanceStatistics` | 每个驱动实例独立采样设备使用率、渲染/平铺负载、已用系统内存与核心数；字段可选，不推算温度或进程排行。使用注册表路径保存设备选择，切换设备或采样缺口时清空图表；缺失字段按同一设备和字段保留至超时，设备移除立即更新。共享内存不等于独立显存，渲染/平铺负载不能相加。 |
+| GPU | IORegistry 的 `IOAccelerator`、`PerformanceStatistics` | 每个驱动实例独立采样设备使用率、渲染/平铺负载、已用系统内存与核心数；字段可选，不推算温度或进程排行。使用注册表路径保存设备选择，使用率、渲染、平铺分别记录最多 60 个新鲜采样，分别绘制蓝色实线、红色长虚线、青色短虚线；不同长度的曲线右对齐到同一采样时间轴。切换设备时全部清空，单项采样缺口只清空该项；缺失字段按同一设备和字段保留至超时，设备移除立即更新。共享内存不等于独立显存，渲染/平铺负载不能相加。 |
 | CPU 使用率 | `host_statistics(HOST_CPU_LOAD_INFO)`、`host_processor_info(PROCESSOR_CPU_LOAD_INFO)` | 每次采集内独立的至少一秒 tick 差值，不混入关闭面板时的长周期；32 位计数器按 32 位回绕处理。可选总体平均或各逻辑核心。 |
 | 内存 | `host_statistics64(HOST_VM_INFO64)`、`ProcessInfo.physicalMemory` | 活跃、联动、压缩、空闲/非活跃内存；压力百分比以（联动 + 压缩）/物理内存估算；提示优先读取内核 `kern.memorystatus_vm_pressure_level`，独立缓存及失效。 |
 | 磁盘容量 | `URLResourceValues.volumeAvailableCapacityForImportantUsage`、`volumeTotalCapacity` | 卷的总量和可用量。 |

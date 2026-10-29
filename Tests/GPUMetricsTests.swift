@@ -50,11 +50,43 @@ struct GPUMetricsTests {
         removed.validFields.insert(.gpus)
         precondition(merge(removed, first, 111).gpus.isEmpty)
         precondition(merge(snapshot("A", usage: nil), first, 112).gpus.first?.utilization == nil)
+        func chartSample(_ id: String = "A", _ usage: Double? = 50,
+                         _ renderer: Double? = 30, _ tiler: Double? = 10) -> SystemMetrics {
+            var result = SystemMetrics()
+            result.validFields.insert(.gpus)
+            result.gpus = [GPUUsage(id: id, name: id, utilization: usage, renderer: renderer,
+                                   tiler: tiler, memoryUsed: nil, coreCount: nil)]
+            return result
+        }
+        func record(_ sample: SystemMetrics, selection: GPUUsage? = nil, source: String = "auto") {
+            store.recordGPUHistory(fresh: sample, selected: selection ?? sample.gpus.first, source: source)
+        }
+        record(chartSample())
+        record(chartSample("A", 60, 40, 0))
+        precondition(store.gpuHistory == [50, 60])
+        precondition(store.gpuRendererHistory == [30, 40])
+        precondition(store.gpuTilerHistory == [10, 0], "Zero is a valid tiler reading")
+        record(chartSample("A", 70, nil, 20))
+        precondition(store.gpuHistory == [50, 60, 70] && store.gpuRendererHistory.isEmpty)
+        precondition(store.gpuTilerHistory == [10, 0, 20])
+        record(chartSample("A", nil, 25, 15))
+        precondition(store.gpuHistory.isEmpty && store.gpuRendererHistory == [25])
+        record(SystemMetrics(), selection: chartSample().gpus.first)
+        precondition(store.gpuHistory.isEmpty && store.gpuRendererHistory.isEmpty && store.gpuTilerHistory.isEmpty)
+        record(chartSample())
+        record(chartSample("B", 80, 60, 40))
+        precondition(store.gpuHistory == [80] && store.gpuRendererHistory == [60] && store.gpuTilerHistory == [40])
+        record(chartSample("B", 20, 15, 5), source: "B")
+        precondition(store.gpuHistory == [20] && store.gpuRendererHistory == [15] && store.gpuTilerHistory == [5])
+        for _ in 0..<70 { record(chartSample("B"), source: "B") }
+        precondition(store.gpuHistory.count == 60 && store.gpuRendererHistory.count == 60 && store.gpuTilerHistory.count == 60)
+        store.gpuSourceChanged()
+        precondition(store.gpuHistory.isEmpty && store.gpuRendererHistory.isEmpty && store.gpuTilerHistory.isEmpty)
         let live = GPUSampler.sample() ?? []
         for gpu in live {
             print("Live GPU: \(gpu.name), usage=\(String(describing: gpu.utilization)), memory=\(String(describing: gpu.memoryUsed)), cores=\(String(describing: gpu.coreCount))")
         }
         store.stop()
-        print("GPU validation passed: missing/invalid readings, zero, expiry, device isolation/removal, legacy preferences, live sampling")
+        print("GPU validation passed: missing/invalid readings, zero, expiry, device isolation/removal, legacy preferences, three histories, independent gaps, source changes, 60-sample limit, live sampling")
     }
 }

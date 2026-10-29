@@ -1,4 +1,4 @@
-# Lumine v1.1.2
+# Lumine v1.1.3
 
 Lumine 是一个轻量的原生 macOS 菜单栏监控 App。点击菜单栏图标查看系统总览；点击卡片查看磁盘、内存、电池、CPU、GPU、网络和外置存储详情。
 
@@ -37,7 +37,7 @@ codesign --force --sign - --timestamp=none build/Build/Products/Release/Lumine.a
 
 上面的第二条命令会为本地构建添加临时签名，便于 macOS 验证 App 包和手动授予完全磁盘访问权限。发布给其他 Mac 用户时，需要用自己的 Apple Developer 身份签名并公证；临时签名不能代替正式发布签名。
 
-GPU 总览卡片可打开与 CPU 风格一致的使用率历史、渲染/平铺负载、已用系统内存和核心数。详情顶部可选择独立 GPU；切换来源后重新记录历史，不混合不同设备。组件页可隐藏 GPU 总览、图表、内存和核心数。GPU 数据来自本机 IOAccelerator 驱动的可选统计字段，各型号支持程度不同；未提供的指标显示“不可用”，Apple Silicon 的 GPU 内存包含共享内存，不等于独立显存容量。渲染和平铺百分比不能相加。暂不提供 GPU 温度或进程排行。可运行 `./scripts/test_gpu.sh` 验证 GPU 读数边界、缓存过期和设备隔离，运行 `./scripts/render_screenshots.sh` 渲染真实面板。
+GPU 总览卡片可打开与 CPU 风格一致的使用率历史、渲染/平铺负载、已用系统内存和核心数。图表同时绘制蓝色使用率实线、红色渲染长虚线及青色平铺短虚线；读数相同时可能重叠。三条曲线共享时间轴，单项缺测只中断该项曲线，不补零或重复缓存值。详情顶部可选择独立 GPU；切换来源后重新记录历史，不混合不同设备。组件页可隐藏 GPU 总览、图表、内存和核心数。GPU 数据来自本机 IOAccelerator 驱动的可选统计字段，各型号支持程度不同；未提供的指标显示“不可用”，Apple Silicon 的 GPU 内存包含共享内存，不等于独立显存容量。渲染和平铺百分比不能相加。暂不提供 GPU 温度或进程排行。可运行 `./scripts/test_gpu.sh` 验证 GPU 读数边界、缓存过期和设备隔离，运行 `./scripts/render_screenshots.sh` 渲染真实面板。
 
 ![GPU 详情与系统总览](docs/images/gpu.png)
 
