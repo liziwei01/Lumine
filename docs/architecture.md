@@ -53,7 +53,7 @@ LumineApp / AppDelegate
 
 | 指标 | 来源 | 说明 |
 | --- | --- | --- |
-| GPU | IORegistry 的 `IOAccelerator`、`PerformanceStatistics` | 每个驱动实例独立采样设备使用率、渲染/平铺负载、已用系统内存与核心数；字段可选，不推算温度或进程排行。使用注册表路径保存设备选择，使用率、渲染、平铺分别记录最多 60 个新鲜采样，分别绘制蓝色实线、红色长虚线、青色短虚线；不同长度的曲线右对齐到同一采样时间轴。切换设备时全部清空，单项采样缺口只清空该项；缺失字段按同一设备和字段保留至超时，设备移除立即更新。共享内存不等于独立显存，渲染/平铺负载不能相加。 |
+| GPU | IOReport GPU 状态驻留时间差；IORegistry 的 `IOAccelerator`、`PerformanceStatistics` | 每个驱动实例独立采样设备使用率、渲染/平铺负载、已用系统内存与核心数；字段可选，不推算温度或进程排行。使用注册表路径保存设备选择，使用率、渲染、平铺分别记录最多 60 个新鲜采样，分别绘制蓝色实线、红色长虚线、青色短虚线；不同长度的曲线右对齐到同一采样时间轴。切换设备时全部清空，单项采样缺口只清空该项；缺失字段按同一设备和字段保留至超时，设备移除立即更新。共享内存不等于独立显存，渲染/平铺负载不能相加。 |
 | CPU 使用率 | `host_statistics(HOST_CPU_LOAD_INFO)`、`host_processor_info(PROCESSOR_CPU_LOAD_INFO)` | 每次采集内独立的至少一秒 tick 差值，不混入关闭面板时的长周期；32 位计数器按 32 位回绕处理。可选总体平均或各逻辑核心。 |
 | 内存 | `host_statistics64(HOST_VM_INFO64)`、`ProcessInfo.physicalMemory` | 活跃、联动、压缩、空闲/非活跃内存；压力百分比以（联动 + 压缩）/物理内存估算；提示优先读取内核 `kern.memorystatus_vm_pressure_level`，独立缓存及失效。 |
 | 磁盘容量 | `URLResourceValues.volumeAvailableCapacityForImportantUsage`、`volumeTotalCapacity` | 卷的总量和可用量。 |
@@ -93,3 +93,7 @@ Apple Silicon 上 CPU 温度没有稳定公开的无特权 API。CleanMyMac 的�
 工程是无第三方依赖的 Swift / SwiftUI / AppKit Xcode 项目。最低 macOS 13；默认不启用沙盒或请求额外权限。通过 `xcodebuild` 编译、运行 App 并检查实际窗口和采样数值。公开 Git 仓库是外层工作区中的 `lumine/` 子目录；外层保留参考截图、构建产物与个人文件。只发布原创代码与原创图标，不把参考截图或第三方品牌素材放入发布包。
 
 废纸篓访问失败时，主按钮直接跳转完全磁盘访问设置；NSOpenPanel 文件夹授权及在访达中定位当前 App 为右键菜单中的辅助操作。从系统设置返回 App 时强制刷新废纸篓，避免等待一分钟重试。仅接受当前卷预期废纸篓路径，安全作用域书签在本机保存，读写期间成对开启及关闭作用域；仍受 macOS 权限检查约束。读取失败不得借助 `fileExists` 推断为空或清空成功。
+
+单一 Apple GPU 的整体使用率优先读取 IOReport 的 `GPU Stats / GPU Performance States`，在至少一秒窗口两端读取样本并计算驻留时间差；活跃状态 P1…Pn 占比排除 OFF/IDLE/DOWN。只接受一个通道及一个 Apple GPU 的明确映射，未知状态或接口失败退回 IOAccelerator 快照。区间值与快照的来源随缓存保留，来源变化时清空历史，避免混用两种口径；不保证与活动监视器每一帧的时间窗口相同。私有符号动态解析，无需 root 或新增后台服务。
+
+`PanelBackgroundRasterizer` 使用 CoreGraphics 在 CPU 上生成静态背景，最多保留四个主题/尺寸/倍率组合；SwiftUI 复用纹理。修改主题、窗口尺寸或显示倍率会选择新图片。监控采样计时器注册到 common modes，避免界面事件跟踪暂停更新。

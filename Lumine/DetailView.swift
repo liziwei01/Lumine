@@ -415,6 +415,12 @@ struct DetailView: View {
         }
     }
 
+    private var gpuUsageHelp: String {
+        store.selectedGPU?.utilizationSource == .interval
+            ? L10n.tr("使用率为本次采样窗口内 GPU 活跃时间占比。渲染和平铺来自驱动快照，不能直接比较或相加；活动监视器的采样窗口可能不同。")
+            : L10n.tr("当前使用率来自驱动快照，可能与活动监视器的区间统计不同。")
+    }
+
     private var gpuContent: some View {
         VStack(alignment: .leading, spacing: 22) {
             Picker("GPU", selection: Binding(
@@ -444,6 +450,7 @@ struct DetailView: View {
                         }
                     VStack(alignment: .leading, spacing: 15) {
                         legend(L10n.tr("使用率"), color: Palette.blue, value: store.selectedGPU?.utilization.map(MetricFormat.percent) ?? L10n.tr("不可用"))
+                            .help(gpuUsageHelp)
                         legend(L10n.tr("渲染"), color: Palette.coral, value: store.selectedGPU?.renderer.map(MetricFormat.percent) ?? L10n.tr("不可用"))
                         legend(L10n.tr("平铺"), color: Palette.cyan, value: store.selectedGPU?.tiler.map(MetricFormat.percent) ?? L10n.tr("不可用"))
                     }
@@ -477,7 +484,7 @@ struct DetailView: View {
                 }
                 .frame(height: 142)
             }
-            Text(L10n.tr("渲染和平铺是独立引擎负载，不能相加。"))
+            Text(L10n.tr("三项统计口径不同，不能相加。"))
                 .font(.system(size: 11)).foregroundStyle(Palette.muted)
         }
     }

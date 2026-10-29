@@ -55,6 +55,7 @@ struct SystemMetricsTests {
         precondition(first.cpuCores.allSatisfy { (0...100).contains($0.total) })
         precondition(first.has(.memory) && first.has(.memoryPressure))
         print("Live CPU: \(first.cpuTotal)%, memory pressure estimate: \(first.memoryPressureEstimate)%, kernel level: \(String(describing: first.memoryPressureLevel))")
+        print("System GPU: \(first.gpus.map { ($0.name, $0.utilization, $0.utilizationSource.rawValue) })")
         let store = MonitorStore(startSampling: false)
         let old = store.retainingRecentValues(from: first, previous: SystemMetrics(), requestedInterface: "auto", now: 100, lifetime: 5)
         let retained = store.retainingRecentValues(from: SystemMetrics(), previous: old, requestedInterface: "auto", now: 103, lifetime: 5)

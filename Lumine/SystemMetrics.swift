@@ -102,6 +102,7 @@ private struct NetworkCounters {
 
 // All mutable state is accessed on MonitorStore's serial sampling queue.
 final class SystemSampler: @unchecked Sendable {
+    private lazy var gpuActivitySampler = GPUActivitySampler()
     private var previousCPU: CPUCounters?
     private var previousCoreCounters: [CPUCounters] = []
     private var previousNetwork: [String: NetworkCounters] = [:]
@@ -121,6 +122,7 @@ final class SystemSampler: @unchecked Sendable {
         result.uptime = ProcessInfo.processInfo.systemUptime
         result.validFields.insert(.uptime)
         result.cpuName = modelName
+        gpuActivitySampler?.begin()
         if let gpus = GPUSampler.sample() {
             result.gpus = gpus
             result.validFields.insert(.gpus)
@@ -164,10 +166,13 @@ final class SystemSampler: @unchecked Sendable {
         result.cpuCores = []
         sampleCPU(into: &result)
         sampleCores(into: &result)
+        let activity = gpuActivitySampler?.finish()
+        result.gpus = GPUActivitySampler.applying(activity, to: result.gpus)
         return result
     }
 
     func stop() {
+        gpuActivitySampler = nil
         hidTemperatureReader = nil
     }
 
@@ -675,7 +680,7 @@ final class MonitorStore: ObservableObject {
 
     // Only fresh driver samples enter the graph; retained labels do not extend a trace.
     func recordGPUHistory(fresh: SystemMetrics, selected: GPUUsage?, source: String) {
-        let identity = source + ":" + (selected?.id ?? "unavailable")
+        let identity = source + ":" + (selected?.id ?? "unavailable") + ":" + (selected?.utilizationSource.rawValue ?? "unavailable")
         if lastGPUIdentity != identity {
             gpuHistory = []
             gpuRendererHistory = []
@@ -752,12 +757,14 @@ final class MonitorStore: ObservableObject {
                     guard lifetime > 0, let last = gpuLastSuccess[gpu.id]?[key], now - last <= lifetime else { return nil }
                     return previousValue
                 }
-                return GPUUsage(id: gpu.id, name: gpu.name,
+                var retainedGPU = GPUUsage(id: gpu.id, name: gpu.name,
                                 utilization: recent("usage", fresh?.utilization, old?.utilization),
                                 renderer: recent("renderer", fresh?.renderer, old?.renderer),
                                 tiler: recent("tiler", fresh?.tiler, old?.tiler),
                                 memoryUsed: recent("memory", fresh?.memoryUsed, old?.memoryUsed),
                                 coreCount: recent("cores", fresh?.coreCount, old?.coreCount))
+                retainedGPU.utilizationSource = fresh?.utilization != nil ? (fresh?.utilizationSource ?? .driverSnapshot) : (old?.utilizationSource ?? .driverSnapshot)
+                return retainedGPU
             }
         }
         retain(.cpu) { output, old in
@@ -845,9 +852,11 @@ final class MonitorStore: ObservableObject {
         timer?.invalidate()
         let interval = isActive ? preferences.values.activeSamplingInterval : preferences.values.idleSamplingInterval
         let seconds = TimeInterval(max(2, interval))
-        timer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: seconds, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }
+        self.timer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 }
 

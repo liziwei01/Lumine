@@ -82,6 +82,38 @@ struct GPUMetricsTests {
         precondition(store.gpuHistory.count == 60 && store.gpuRendererHistory.count == 60 && store.gpuTilerHistory.count == 60)
         store.gpuSourceChanged()
         precondition(store.gpuHistory.isEmpty && store.gpuRendererHistory.isEmpty && store.gpuTilerHistory.isEmpty)
+        precondition(GPUActivitySampler.activePercent([("OFF", 900), ("P1", 100)]) == 10)
+        precondition(GPUActivitySampler.activePercent([("OFF", 0), ("P1", 100)]) == 100)
+        precondition(GPUActivitySampler.activePercent([("OFF", 100), ("P1", 0)]) == 0)
+        precondition(GPUActivitySampler.activePercent([("IDLE", 20), ("DOWN", 30), ("P2", 50)]) == 50)
+        precondition(GPUActivitySampler.activePercent([("OFF", 0), ("P1", 0)]) == nil)
+        precondition(GPUActivitySampler.activePercent([("OFF", -1), ("P1", 10)]) == nil)
+        precondition(GPUActivitySampler.activePercent([("UNKNOWN", 10), ("P1", 10)]) == nil)
+        precondition(GPUActivitySampler.activePercent([("P1", 10)]) == nil)
+        let apple = GPUUsage(id: "apple", name: "Apple M2 Max", utilization: 50, renderer: 50, tiler: 50, memoryUsed: nil, coreCount: 38)
+        let integrated = GPUActivitySampler.applying(0, to: [apple])
+        precondition(integrated[0].utilization == 0 && integrated[0].utilizationSource == .interval)
+        precondition(integrated[0].renderer == 50 && integrated[0].tiler == 50)
+        precondition(GPUActivitySampler.applying(nil, to: [apple])[0].utilization == 50)
+        precondition(GPUActivitySampler.applying(101, to: [apple])[0].utilization == 50)
+        precondition(GPUActivitySampler.applying(10, to: [apple, apple]).allSatisfy { $0.utilization == 50 })
+        var interval = chartSample("apple")
+        interval.gpus = GPUActivitySampler.applying(25, to: [apple])
+        let cachedInterval = merge(interval, SystemMetrics(), 200)
+        let staleInterval = merge(SystemMetrics(), cachedInterval, 202)
+        precondition(staleInterval.gpus.first?.utilizationSource == .interval)
+        store.recordGPUHistory(fresh: interval, selected: interval.gpus.first, source: "auto")
+        var driver = interval
+        driver.gpus = [apple]
+        store.recordGPUHistory(fresh: driver, selected: apple, source: "auto")
+        precondition(store.gpuHistory == [50], "Different measurement definitions must not share a trace")
+        if let activity = GPUActivitySampler() {
+            activity.begin()
+            Thread.sleep(forTimeInterval: 0.2)
+            let value = activity.finish()
+            precondition(value.map { (0...100).contains($0) } ?? true)
+            print("Live GPU interval active percent: \(String(describing: value))")
+        }
         let live = GPUSampler.sample() ?? []
         for gpu in live {
             print("Live GPU: \(gpu.name), usage=\(String(describing: gpu.utilization)), memory=\(String(describing: gpu.memoryUsed)), cores=\(String(describing: gpu.coreCount))")

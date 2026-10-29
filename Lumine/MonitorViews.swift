@@ -44,10 +44,36 @@ private struct RGBColor {
     }
 }
 
-private struct PanelGradient: View {
-    let theme: ThemeConfiguration
+// Static panel artwork is rasterized on the CPU once per size/theme, then reused.
+// Reuse the artwork instead of submitting 128 gradient strips to a live Canvas
+// again whenever monitoring readings change.
+@MainActor
+private enum PanelBackgroundRasterizer {
+    private struct Entry {
+        let theme: ThemeConfiguration
+        let size: CGSize
+        let scale: CGFloat
+        let image: CGImage
+    }
+    private static var entries: [Entry] = []
 
-    var body: some View {
+    static func image(theme: ThemeConfiguration, size: CGSize, scale: CGFloat) -> CGImage? {
+        guard size.width > 0, size.height > 0, scale > 0 else { return nil }
+        if let entry = entries.first(where: { $0.theme == theme && $0.size == size && $0.scale == scale }) {
+            return entry.image
+        }
+        let width = Int((size.width * scale).rounded(.up))
+        let height = Int((size.height * scale).rounded(.up))
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                      bytesPerRow: 0, space: space,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        context.scaleBy(x: scale, y: scale)
+        context.translateBy(x: 0, y: size.height)
+        context.scaleBy(x: 1, y: -1)
+        func color(_ value: RGBColor, alpha: Double = 1) -> CGColor {
+            CGColor(srgbRed: value.red, green: value.green, blue: value.blue, alpha: alpha)
+        }
         let topLeft = RGBColor(theme.panelTop)
         let topMiddle = RGBColor(theme.panelTopMiddle)
         let topRight = RGBColor(theme.panelTopRight)
@@ -56,35 +82,56 @@ private struct PanelGradient: View {
         let bottomRight = RGBColor(theme.panelBottomRight)
         let beam = theme.resolvedBeam
         let beamTint = RGBColor(beam.color)
-        Canvas { context, size in
-            let columns = max(1, min(128, Int(size.width.rounded(.up))))
-            let stripWidth = size.width / CGFloat(columns)
-            for column in 0..<columns {
-                let x = Double(column) / Double(max(columns - 1, 1))
-                let upperBase = RGBColor.across(topLeft, topMiddle, topRight, x)
-                let lowerBase = RGBColor.across(bottomLeft, bottomMiddle, bottomRight, x, middlePosition: 0.39)
-                let middleBase = RGBColor.blend(upperBase, lowerBase, 0.52)
-                let middlePosition = (beam.topPosition + beam.bottomPosition) / 2
-                let upper = RGBColor.blend(upperBase, beamTint, beamWeight(x, center: beam.topPosition) * beam.strength).color
-                let middle = RGBColor.blend(middleBase, beamTint, beamWeight(x, center: middlePosition) * beam.strength).color
-                let lower = RGBColor.blend(lowerBase, beamTint, beamWeight(x, center: beam.bottomPosition) * beam.strength * 0.23).color
-                let startX = CGFloat(column) * stripWidth
-                let rect = CGRect(x: startX, y: 0, width: stripWidth + 0.5, height: size.height)
-                context.fill(Path(rect), with: .linearGradient(Gradient(stops: [
-                    .init(color: upper, location: 0),
-                    .init(color: middle, location: 0.52),
-                    .init(color: lower, location: 1)
-                ]), startPoint: CGPoint(x: startX, y: 0), endPoint: CGPoint(x: startX, y: size.height)))
+        func beamWeight(_ x: Double, center: Double) -> Double {
+            let distance = (x - center) / 0.24
+            return exp(-0.5 * distance * distance)
+        }
+        let columns = max(1, min(128, Int(size.width.rounded(.up))))
+        let stripWidth = size.width / CGFloat(columns)
+        for column in 0..<columns {
+            let x = Double(column) / Double(max(columns - 1, 1))
+            let upperBase = RGBColor.across(topLeft, topMiddle, topRight, x)
+            let lowerBase = RGBColor.across(bottomLeft, bottomMiddle, bottomRight, x, middlePosition: 0.39)
+            let middleBase = RGBColor.blend(upperBase, lowerBase, 0.52)
+            let middlePosition = (beam.topPosition + beam.bottomPosition) / 2
+            let upper = RGBColor.blend(upperBase, beamTint, beamWeight(x, center: beam.topPosition) * beam.strength)
+            let middle = RGBColor.blend(middleBase, beamTint, beamWeight(x, center: middlePosition) * beam.strength)
+            let lower = RGBColor.blend(lowerBase, beamTint, beamWeight(x, center: beam.bottomPosition) * beam.strength * 0.23)
+            let startX = CGFloat(column) * stripWidth
+            guard let gradient = CGGradient(colorsSpace: space, colors: [color(upper), color(middle), color(lower)] as CFArray,
+                                            locations: [0, 0.52, 1]) else { return nil }
+            context.saveGState()
+            context.clip(to: CGRect(x: startX, y: 0, width: stripWidth + 0.5, height: size.height))
+            context.drawLinearGradient(gradient, start: CGPoint(x: startX, y: 0), end: CGPoint(x: startX, y: size.height), options: [])
+            context.restoreGState()
+        }
+        let glow = RGBColor(theme.panelGlow)
+        if let radial = CGGradient(colorsSpace: space,
+                                   colors: [color(glow, alpha: theme.panelGlowStrength * 0.35), color(glow, alpha: 0)] as CFArray,
+                                   locations: [0, 1]) {
+            let center = CGPoint(x: size.width, y: size.height / 2)
+            context.drawRadialGradient(radial, startCenter: center, startRadius: 0,
+                                       endCenter: center, endRadius: 330, options: .drawsAfterEndLocation)
+        }
+        guard let image = context.makeImage() else { return nil }
+        entries.append(Entry(theme: theme, size: size, scale: scale, image: image))
+        if entries.count > 4 { entries.removeFirst(entries.count - 4) }
+        return image
+    }
+}
+
+private struct PanelGradient: View {
+    let theme: ThemeConfiguration
+    @Environment(\.displayScale) private var scale
+
+    var body: some View {
+        GeometryReader { geometry in
+            if let image = PanelBackgroundRasterizer.image(theme: theme, size: geometry.size, scale: scale) {
+                Image(decorative: image, scale: scale).resizable()
+            } else {
+                Color(hex: theme.panelBottom)
             }
         }
-        .overlay {
-            RadialGradient(colors: [Color(hex: theme.panelGlow).opacity(theme.panelGlowStrength * 0.35), .clear], center: .trailing, startRadius: 0, endRadius: 330)
-        }
-    }
-
-    private func beamWeight(_ x: Double, center: Double) -> Double {
-        let distance = (x - center) / 0.24
-        return exp(-0.5 * distance * distance)
     }
 }
 

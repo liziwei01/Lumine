@@ -25,3 +25,5 @@ Lumine 的 AppleSMC 只读协议布局、CPU 传感器键映射及 Apple Silicon
 > LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 > OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 > SOFTWARE.
+
+IOReport 状态驻留时间接口的技术参考：[macmon](https://github.com/vladkens/macmon)（MIT，Copyright (c) 2024 vladkens）及 [Apple XNU IOStateReporter](https://github.com/apple-oss-distributions/xnu/blob/main/iokit/Kernel/IOStateReporter.cpp)。Lumine 动态调用本机系统库，不包含这些项目的二进制；诊断脚本未纳入发布包。
