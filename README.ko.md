@@ -14,11 +14,6 @@ Lumine은 네이티브 시스템 모니터입니다. macOS에서는 메뉴 막�
 <p><img src="docs/images/overview.png" width="446" alt="시스템 개요(macOS)"></p>
 </details>
 
-<details>
-<summary>Windows 대시보드(Windows CI 캡처)</summary>
-<p><img src="docs/images/windows.png" width="490" alt="Windows 대시보드(Windows CI 캡처)"></p>
-</details>
-
 ## 다운로드
 
 [GitHub Releases](https://github.com/liziwei01/Lumine/releases/latest)에서 macOS 유니버설 버전(Apple Silicon 및 Intel), Windows x64, Windows ARM64를 다운로드하세요. 압축을 푼 후 실행하세요. Windows 패키지에는 런타임이 포함됩니다. macOS는 임시 서명만 있으며 공증되지 않았고, Windows 패키지는 서명되지 않았습니다.
@@ -65,7 +60,7 @@ dotnet publish windows/Lumine.Windows -c Release -r win-x64 --self-contained tru
 
 출력 폴더의 모든 파일을 유지하고 `dist/windows-x64/Lumine.exe`를 실행하세요. ARM에서는 `win-arm64`를 사용합니다. 창을 닫으면 트레이로 숨겨지고 아이콘을 클릭하면 다시 열립니다. 모니터링을 중지하려면 종료를 선택하세요. 설정은 `%LOCALAPPDATA%\Lumine\settings.json`에 저장됩니다. 관리자 권한, 드라이버 및 백그라운드 서비스는 필요하지 않습니다.
 
-[빌드 워크플로](.github/workflows/build.yml)는 두 플랫폼을 빌드하고 Windows x64·ARM64 결과물을 생성합니다. x64 스모크 테스트는 실제 Windows 지표를 수집하고 WPF 화면을 이미지로 내보냅니다. Windows x64의 실제 지표 수집과 WPF 렌더링은 [Windows CI](https://github.com/liziwei01/Lumine/actions/runs/40080001959)에서 검증되었습니다. ARM64는 빌드했지만 ARM 기기에서는 아직 실행하지 않았습니다. [Windows 구현 설명(영어)](docs/windows.md)을 참조하세요.
+[빌드 워크플로](.github/workflows/build.yml)는 두 플랫폼을 빌드하고 Windows x64·ARM64 결과물을 생성합니다. x64 스모크 테스트는 실제 Windows 지표를 수집하고 WPF 화면을 이미지로 내보냅니다. 이번 변경은 macOS에서 교차 컴파일했으며 Windows 실행 검증은 Windows CI 또는 실제 기기에서 확인해야 합니다. [Windows 구현 설명(영어)](docs/windows.md)을 참조하세요.
 
 ## 데이터와 개인정보
 
