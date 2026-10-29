@@ -42,6 +42,7 @@ struct SystemMetrics {
     var validFields: Set<MetricField> = []
     var deviceName = Host.current().localizedName ?? "Mac"
     var gpus: [GPUUsage] = []
+    var gpuProcesses: [String: [GPUProcessUsage]] = [:]
     var cpuName = "CPU"
     var volumeName = "Macintosh HD"
     var diskTotal: Int64 = 0
@@ -113,7 +114,7 @@ final class SystemSampler: @unchecked Sendable {
     private var nextSMCAttempt: TimeInterval = 0
     private var lastProcessSample: TimeInterval = 0
 
-    func sample(networkInterface: String = "auto", includeProcesses: Bool = false) -> SystemMetrics {
+    func sample(networkInterface: String = "auto", includeProcesses: Bool = false, includeGPUProcesses: Bool = false) -> SystemMetrics {
         var result = SystemMetrics()
         if let name = Host.current().localizedName, !name.isEmpty {
             result.deviceName = name
@@ -122,6 +123,7 @@ final class SystemSampler: @unchecked Sendable {
         result.uptime = ProcessInfo.processInfo.systemUptime
         result.validFields.insert(.uptime)
         result.cpuName = modelName
+        let gpuProcessStart = includeGPUProcesses ? GPUProcessSampler.snapshot() : nil
         gpuActivitySampler?.begin()
         if let gpus = GPUSampler.sample() {
             result.gpus = gpus
@@ -166,6 +168,9 @@ final class SystemSampler: @unchecked Sendable {
         result.cpuCores = []
         sampleCPU(into: &result)
         sampleCores(into: &result)
+        if let start = gpuProcessStart {
+            result.gpuProcesses = GPUProcessSampler.resolveNames(GPUProcessSampler.usage(from: start, to: GPUProcessSampler.snapshot()))
+        }
         let activity = gpuActivitySampler?.finish()
         result.gpus = GPUActivitySampler.applying(activity, to: result.gpus)
         return result
@@ -518,6 +523,7 @@ final class MonitorStore: ObservableObject {
     private var isSampling = false
     private var isStopped = false
     private var pendingDetailRefresh = false
+    @Published private(set) var gpuProcessesLoading = false
     private var lastSuccess: [MetricField: TimeInterval] = [:]
     private var sensorLastSuccess: [String: TimeInterval] = [:]
     private var volumeLastSuccess: [String: TimeInterval] = [:]
@@ -605,9 +611,11 @@ final class MonitorStore: ObservableObject {
 
     func setDetail(_ detail: DetailKind?) {
         activeDetail = detail
+        metrics.gpuProcesses = [:]
+        gpuProcessesLoading = detail == .gpu && preferences.values.shows(.gpuProcesses)
         pendingDetailRefresh = (detail == .cpu && preferences.values.shows(.cpuProcesses)) ||
             (detail == .memory && preferences.values.shows(.memoryProcesses)) ||
-            (detail == .battery && preferences.values.shows(.batteryProcesses))
+            (detail == .battery && preferences.values.shows(.batteryProcesses)) || gpuProcessesLoading
         if pendingDetailRefresh { refresh() }
     }
 
@@ -620,6 +628,7 @@ final class MonitorStore: ObservableObject {
         gpuRendererHistory = []
         gpuTilerHistory = []
         lastGPUIdentity = nil
+        metrics.gpuProcesses = [:]
         refresh()
     }
 
@@ -646,9 +655,10 @@ final class MonitorStore: ObservableObject {
         let includeProcesses = (activeDetail == .cpu && preferences.values.shows(.cpuProcesses)) ||
             (activeDetail == .memory && preferences.values.shows(.memoryProcesses)) ||
             (activeDetail == .battery && preferences.values.shows(.batteryProcesses))
+        let includeGPUProcesses = activeDetail == .gpu && preferences.values.shows(.gpuProcesses)
         samplingQueue.async { [weak self] in
             guard let self else { return }
-            let sampled = self.sampler.sample(networkInterface: interface, includeProcesses: includeProcesses)
+            let sampled = self.sampler.sample(networkInterface: interface, includeProcesses: includeProcesses, includeGPUProcesses: includeGPUProcesses)
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.isSampling = false
@@ -664,6 +674,10 @@ final class MonitorStore: ObservableObject {
                     now: ProcessInfo.processInfo.systemUptime,
                     lifetime: TimeInterval(self.preferences.values.failedSampleRetentionSeconds)
                 )
+                if self.activeDetail != .gpu || !self.preferences.values.shows(.gpuProcesses) {
+                    self.metrics.gpuProcesses = [:]
+                }
+                if includeGPUProcesses { self.gpuProcessesLoading = false }
                 if sampled.has(.network) {
                     self.trafficHistory.record(interface: sampled.networkInterface,
                                                download: sampled.downloadedBytes,
@@ -672,7 +686,7 @@ final class MonitorStore: ObservableObject {
                 self.recordHistory(fresh: sampled)
                 if self.pendingDetailRefresh {
                     self.pendingDetailRefresh = false
-                    if !includeProcesses { self.refresh() }
+                    if self.activeDetail == .gpu ? !includeGPUProcesses : !includeProcesses { self.refresh() }
                 }
             }
         }

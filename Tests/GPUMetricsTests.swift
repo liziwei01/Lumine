@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Metal
 
 @main
 struct GPUMetricsTests {
@@ -114,11 +115,93 @@ struct GPUMetricsTests {
             precondition(value.map { (0...100).contains($0) } ?? true)
             print("Live GPU interval active percent: \(String(describing: value))")
         }
+        typealias Client = GPUProcessSampler.Client
+        typealias Snapshot = GPUProcessSampler.Snapshot
+        func client(_ id: UInt64 = 1, _ pid: Int32 = 100, _ times: [UInt64]) -> Client {
+            Client(id: id, pid: pid, name: "test", queueTimes: times)
+        }
+        let processStart = Snapshot(time: 1, devices: ["A": [client(1, 100, [0, 10]), client(2, 100, [0]), client(3, 200, [20])],
+                                                       "B": [client(4, 100, [0])]])
+        let processEnd = Snapshot(time: 2, devices: ["A": [client(1, 100, [500_000_000, 10]), client(2, 100, [250_000_000]), client(3, 200, [1_500_000_020])],
+                                                     "B": [client(4, 100, [100_000_000])]])
+        let rates = GPUProcessSampler.usage(from: processStart, to: processEnd)
+        precondition(rates["A"]?.map(\.id) == [200, 100])
+        precondition(rates["A"]?.map(\.gpuPercent) == [150, 75], "Overlapping GPU execution must not be capped or normalized")
+        precondition(rates["B"]?.first?.gpuPercent == 10, "Keep device attribution separate")
+        let changed = Snapshot(time: 3, devices: ["A": [client(1, 999, [9_000_000_000]), client(2, 100, [1]), client(3, 200, [1_600_000_020, 0]), client(9, 300, [9_000_000_000])]])
+        precondition(GPUProcessSampler.usage(from: processEnd, to: changed)["A"]?.isEmpty == true,
+                     "PID reuse, resets, queue changes, and new clients must not produce spikes")
+        precondition(GPUProcessSampler.usage(from: processEnd, to: Snapshot(time: 3, devices: [:])).isEmpty)
+        precondition(GPUProcessSampler.usage(from: processStart, to: processStart).isEmpty)
+        precondition(GPUProcessSampler.usage(from: Snapshot(time: 0, devices: [:]), to: processEnd).isEmpty)
+        precondition(GPUProcessSampler.owner("pid 123, WindowServer")?.pid == 123)
+        precondition(GPUProcessSampler.owner("pid 123, WindowServer")?.name == "WindowServer")
+        precondition(GPUProcessSampler.owner("pid 0, invalid") == nil)
+        precondition(GPUProcessSampler.owner("invalid") == nil)
+        precondition(legacy.shows(.gpuProcesses))
+        let processLiveStart = GPUProcessSampler.snapshot()
+        Thread.sleep(forTimeInterval: 1)
+        let liveProcesses = GPUProcessSampler.resolveNames(GPUProcessSampler.usage(from: processLiveStart, to: GPUProcessSampler.snapshot()))
+        for (device, processes) in liveProcesses {
+            precondition(processes.allSatisfy { $0.gpuPercent.isFinite && $0.gpuPercent >= 0 })
+            print("GPU process clients on \(device): \(processes.count)")
+            for process in processes.prefix(5) { print("  PID \(process.id) \(process.name): \(process.gpuPercent)%") }
+        }
+        // Exercise the real AGX attribution path with work owned by this test process.
+        if !liveProcesses.isEmpty, let device = MTLCreateSystemDefaultDevice(),
+           let queue = device.makeCommandQueue() {
+            let library = try device.makeLibrary(source: """
+                #include <metal_stdlib>
+                using namespace metal;
+                kernel void work(device float *output [[buffer(0)]], uint id [[thread_position_in_grid]]) {
+                    float value = float(id) + 1.0f;
+                    for (uint i = 0; i < 2048; ++i) { value = sqrt(value + float(i) + 1.0f); }
+                    output[id] = value;
+                }
+                """, options: nil)
+            let pipeline = try device.makeComputePipelineState(function: library.makeFunction(name: "work")!)
+            let buffer = device.makeBuffer(length: 32768 * MemoryLayout<Float>.size, options: .storageModeShared)!
+            func runMetalWork() {
+                let command = queue.makeCommandBuffer()!
+                let encoder = command.makeComputeCommandEncoder()!
+                encoder.setComputePipelineState(pipeline)
+                encoder.setBuffer(buffer, offset: 0, index: 0)
+                encoder.dispatchThreads(MTLSize(width: 32768, height: 1, depth: 1), threadsPerThreadgroup: MTLSize(width: 256, height: 1, depth: 1))
+                encoder.endEncoding()
+                command.commit()
+                command.waitUntilCompleted()
+                precondition(command.status == .completed)
+            }
+            runMetalWork() // Establish this queue before measuring it.
+            let workloadStart = GPUProcessSampler.snapshot()
+            let until = ProcessInfo.processInfo.systemUptime + 0.6
+            repeat { runMetalWork() } while ProcessInfo.processInfo.systemUptime < until
+            Thread.sleep(forTimeInterval: 0.1)
+            let measured = GPUProcessSampler.usage(from: workloadStart, to: GPUProcessSampler.snapshot())
+            let ownUsage = measured.values.flatMap { $0 }.filter { $0.id == getpid() }.reduce(0) { $0 + $1.gpuPercent }
+            precondition(ownUsage > 0, "The known Metal workload must be attributed to its owning PID")
+            print("Known Metal workload attributed to test PID: \(ownUsage)%")
+        }
         let live = GPUSampler.sample() ?? []
         for gpu in live {
             print("Live GPU: \(gpu.name), usage=\(String(describing: gpu.utilization)), memory=\(String(describing: gpu.memoryUsed)), cores=\(String(describing: gpu.coreCount))")
         }
         store.stop()
-        print("GPU validation passed: missing/invalid readings, zero, expiry, device isolation/removal, legacy preferences, three histories, independent gaps, source changes, 60-sample limit, live sampling")
+        if !liveProcesses.isEmpty, PreferencesStore.shared.values.shows(.gpuProcesses) {
+            let opening = MonitorStore(startSampling: false)
+            opening.refresh() // An ordinary sample is already in flight when the panel opens.
+            opening.setDetail(.gpu)
+            precondition(opening.gpuProcessesLoading)
+            let deadline = Date().addingTimeInterval(5)
+            while opening.gpuProcessesLoading && Date() < deadline {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+            }
+            precondition(!opening.gpuProcessesLoading && !opening.metrics.gpuProcesses.isEmpty,
+                         "Opening the GPU panel during an ordinary sample must trigger process sampling")
+            opening.setDetail(nil)
+            precondition(opening.metrics.gpuProcesses.isEmpty, "Closing the panel must discard old process attribution")
+            opening.stop()
+        }
+        print("GPU validation passed: missing/invalid readings, zero, expiry, device isolation/removal, legacy preferences, three histories, independent gaps, source changes, 60-sample limit, GPU process deltas/resets/PID reuse/device isolation, live Metal attribution")
     }
 }

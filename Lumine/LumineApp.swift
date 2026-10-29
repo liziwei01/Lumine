@@ -210,6 +210,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if !preferences.shows(.cpuProcesses) { height -= 225 }
             case .gpu:
                 height = 485
+                if preferences.shows(.gpuProcesses) { height += 292 }
                 if !preferences.shows(.gpuChart) { height -= 156 }
                 if !preferences.shows(.gpuMemory) && !preferences.shows(.gpuCores) { height -= 164 }
             case .network:

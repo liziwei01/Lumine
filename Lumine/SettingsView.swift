@@ -58,7 +58,7 @@ struct SettingsView: View {
         (L10n.tr("磁盘"), [(.diskCategories, L10n.tr("文件类别")), (.diskHealth, L10n.tr("运行状况")), (.diskTemperature, L10n.tr("温度")), (.diskTrash, L10n.tr("废纸篓")), (.diskCapacity, L10n.tr("已使用与总容量（附加）")), (.diskExternal, L10n.tr("外置驱动器（附加）"))]),
         (L10n.tr("内存"), [(.memoryPressure, L10n.tr("压力")), (.memorySwap, L10n.tr("交换分区")), (.memoryProcesses, L10n.tr("使用率排行"))]),
         (L10n.tr("电池"), [(.batteryHealth, L10n.tr("运行状况")), (.batteryTemperature, L10n.tr("温度")), (.batteryCycles, L10n.tr("循环次数")), (.batteryProcesses, L10n.tr("使用率排行"))]),
-        ("GPU", [(.gpuChart, L10n.tr("负载图表")), (.gpuMemory, L10n.tr("GPU 已用内存")), (.gpuCores, L10n.tr("GPU 核心"))]),
+        ("GPU", [(.gpuChart, L10n.tr("负载图表")), (.gpuMemory, L10n.tr("GPU 已用内存")), (.gpuCores, L10n.tr("GPU 核心")), (.gpuProcesses, L10n.tr("使用率排行"))]),
         ("CPU", [(.cpuChart, L10n.tr("负载图表")), (.cpuUptime, L10n.tr("正常运行时间")), (.cpuTemperature, L10n.tr("温度")), (.cpuProcesses, L10n.tr("使用率排行"))]),
         (L10n.tr("网络"), [(.networkConnection, L10n.tr("连接信息")), (.networkDownload, L10n.tr("下载")), (.networkUpload, L10n.tr("上传")), (.networkSpeedTest, L10n.tr("测速"))]),
         (L10n.tr("设备"), [(.devicesExternal, L10n.tr("外置驱动器"))])

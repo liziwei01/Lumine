@@ -61,6 +61,7 @@ struct DetailView: View {
                 refreshDiskSupplement(path: path)
             }
             if kind == .network && !shows(.networkSpeedTest) { speedTest.cancel() }
+            if kind == .gpu { store.setDetail(.gpu) }
             layoutChanged()
         }
         .onChange(of: preferences.values.failedSampleRetentionSeconds) { _ in
@@ -484,9 +485,49 @@ struct DetailView: View {
                 }
                 .frame(height: 142)
             }
+            if shows(.gpuProcesses) { gpuProcessSection }
             Text(L10n.tr("三项统计口径不同，不能相加。"))
                 .font(.system(size: 11)).foregroundStyle(Palette.muted)
         }
+    }
+
+    private var gpuProcessSection: some View {
+        let processes = store.selectedGPU.flatMap { m.gpuProcesses[$0.id] }
+        let ranked = Array((processes ?? []).prefix(5))
+        return VStack(alignment: .leading, spacing: 9) {
+            sectionTitle(L10n.tr("使用率排行"))
+            HStack {
+                Text(L10n.tr("进程名称"))
+                Spacer()
+                Text(L10n.tr("GPU 时间占比"))
+                    .help(L10n.tr("100% 表示每秒累计 1 秒 GPU 执行时间。"))
+            }
+            .font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.muted)
+            if ranked.isEmpty {
+                Text(store.gpuProcessesLoading ? L10n.tr("正在获取进程数据…") : processes == nil ? L10n.tr("当前驱动不提供逐进程 GPU 数据。") : L10n.tr("当前没有可见进程。"))
+                    .font(.system(size: 11)).foregroundStyle(Palette.muted)
+            }
+            ForEach(ranked) { process in
+                HStack(spacing: 9) {
+                    if let icon = NSRunningApplication(processIdentifier: process.id)?.icon {
+                        Image(nsImage: icon).resizable().frame(width: 20, height: 20)
+                    } else {
+                        Image(systemName: "app.fill").frame(width: 20, height: 20).foregroundStyle(Palette.muted)
+                    }
+                    Text(NSRunningApplication(processIdentifier: process.id)?.localizedName ?? process.name).lineLimit(1)
+                        .help(process.name + " · PID " + String(process.id))
+                    Spacer()
+                    Text("PID " + String(process.id)).foregroundStyle(Palette.muted)
+                    Text(String(format: "%.1f%%", process.gpuPercent))
+                        .monospacedDigit().frame(minWidth: 52, alignment: .trailing)
+                        .foregroundStyle(process.gpuPercent > 20 ? Palette.yellow : Palette.muted)
+                }
+                .font(.system(size: 11, weight: .medium)).frame(height: 25)
+            }
+            Text(L10n.tr("按采样窗口内的 GPU 执行时间排序；并行任务可重叠，不能与整机使用率相加或直接比较。"))
+                .font(.system(size: 10)).foregroundStyle(Palette.muted).fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(height: 270, alignment: .top)
     }
 
     private var cpuContent: some View {

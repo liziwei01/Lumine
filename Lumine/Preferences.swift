@@ -72,7 +72,7 @@ enum Widget: String, CaseIterable, Identifiable {
     case diskTrash = "disk.trash", diskCapacity = "disk.capacity", diskExternal = "disk.external"
     case memoryPressure = "memory.pressure", memorySwap = "memory.swap", memoryProcesses = "memory.processes"
     case batteryHealth = "battery.health", batteryTemperature = "battery.temperature", batteryCycles = "battery.cycles", batteryProcesses = "battery.processes"
-    case gpuChart = "gpu.chart", gpuMemory = "gpu.memory", gpuCores = "gpu.cores"
+    case gpuChart = "gpu.chart", gpuMemory = "gpu.memory", gpuCores = "gpu.cores", gpuProcesses = "gpu.processes"
     case cpuChart = "cpu.chart", cpuUptime = "cpu.uptime", cpuTemperature = "cpu.temperature", cpuProcesses = "cpu.processes"
     case networkConnection = "network.connection", networkDownload = "network.download", networkUpload = "network.upload", networkSpeedTest = "network.speedtest"
     case devicesExternal = "devices.external"

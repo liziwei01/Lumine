@@ -17,7 +17,7 @@ struct Preview {
         let output = CommandLine.arguments[1]
         capture(OverviewView(store: store, selected: nil, select: { _ in }, openSettings: {}).frame(width: 446, height: 488), to: output + "/overview.png")
         capture(HStack(alignment: .top, spacing: 12) {
-            DetailView(store: store, kind: .gpu, layoutChanged: {}).frame(width: 446, height: 485)
+            DetailView(store: store, kind: .gpu, layoutChanged: {}).frame(width: 446, height: 777)
             OverviewView(store: store, selected: .gpu, select: { _ in }, openSettings: {}).frame(width: 446, height: 488)
         }.padding(16).background(Color(red: 0.06, green: 0.04, blue: 0.14)), to: output + "/gpu.png")
         store.stop()

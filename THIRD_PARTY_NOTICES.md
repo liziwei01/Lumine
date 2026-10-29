@@ -27,3 +27,5 @@ Lumine 的 AppleSMC 只读协议布局、CPU 传感器键映射及 Apple Silicon
 > SOFTWARE.
 
 IOReport 状态驻留时间接口的技术参考：[macmon](https://github.com/vladkens/macmon)（MIT，Copyright (c) 2024 vladkens）及 [Apple XNU IOStateReporter](https://github.com/apple-oss-distributions/xnu/blob/main/iokit/Kernel/IOStateReporter.cpp)。Lumine 动态调用本机系统库，不包含这些项目的二进制；诊断脚本未纳入发布包。
+
+逐进程 GPU 字段的技术线索来自 [metalps 项目说明](https://github.com/LoganBarnett/metalps)，并在本机 IORegistry 上验证 `AGXDeviceUserClient` 的 `AppUsage.accumulatedGPUTime`。Lumine 自行实现 IOKit 遍历、客户端差分和界面，未复制或打包该项目的 AGPL 源码、二进制或依赖。
