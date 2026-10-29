@@ -6,7 +6,7 @@ import IOKit
 import IOKit.ps
 
 enum DetailKind: String, CaseIterable {
-    case disk, memory, battery, cpu, network, devices
+    case disk, memory, battery, cpu, gpu, network, devices
 }
 
 struct ProcessUsage: Identifiable {
@@ -32,6 +32,7 @@ struct ExternalVolume: Identifiable {
 }
 
 enum MetricField: Hashable {
+    case gpus
     case deviceName, volumeName, cpu, cores, cpuTemperature, memory, swap, disk, externalVolumes
     case batteryPower, batteryMinutes, batteryCycles, batteryDesignCycles, batteryHealth, batteryTemperature
     case network, networkName, networkSecurity, processes, uptime
@@ -40,6 +41,7 @@ enum MetricField: Hashable {
 struct SystemMetrics {
     var validFields: Set<MetricField> = []
     var deviceName = Host.current().localizedName ?? "Mac"
+    var gpus: [GPUUsage] = []
     var cpuName = "CPU"
     var volumeName = "Macintosh HD"
     var diskTotal: Int64 = 0
@@ -118,6 +120,10 @@ final class SystemSampler: @unchecked Sendable {
         result.uptime = ProcessInfo.processInfo.systemUptime
         result.validFields.insert(.uptime)
         result.cpuName = modelName
+        if let gpus = GPUSampler.sample() {
+            result.gpus = gpus
+            result.validFields.insert(.gpus)
+        }
         sampleCPU(into: &result)
         sampleCores(into: &result)
         if result.cpuName.contains("Apple M") {
@@ -469,6 +475,9 @@ final class SystemSampler: @unchecked Sendable {
 @MainActor
 final class MonitorStore: ObservableObject {
     @Published private(set) var metrics = SystemMetrics()
+    @Published private(set) var gpuHistory: [Double] = []
+    private var lastGPUIdentity: String?
+    private var gpuLastSuccess: [String: [String: TimeInterval]] = [:]
     @Published private(set) var cpuHistory: [Double] = Array(repeating: 0, count: 60)
     @Published private(set) var downloadHistory: [Double] = Array(repeating: 0, count: 60)
     @Published private(set) var uploadHistory: [Double] = Array(repeating: 0, count: 60)
@@ -488,6 +497,11 @@ final class MonitorStore: ObservableObject {
     private var sensorLastSuccess: [String: TimeInterval] = [:]
     private var volumeLastSuccess: [String: TimeInterval] = [:]
     private var lastRequestedNetworkInterface = "auto"
+
+    var selectedGPU: GPUUsage? {
+        let source = preferences.values.gpuSource
+        return source == "auto" ? metrics.gpus.first : metrics.gpus.first { $0.id == source }
+    }
 
     var selectedCPU: CoreUsage {
         let source = preferences.values.cpuSource
@@ -576,6 +590,12 @@ final class MonitorStore: ObservableObject {
         schedule()
     }
 
+    func gpuSourceChanged() {
+        gpuHistory = []
+        lastGPUIdentity = nil
+        refresh()
+    }
+
     func networkSourceChanged() {
         var updated = metrics
         updated.validFields.subtract([.network, .networkName, .networkSecurity])
@@ -632,6 +652,18 @@ final class MonitorStore: ObservableObject {
     }
 
     private func recordHistory(fresh: SystemMetrics) {
+        let identity = preferences.values.gpuSource + ":" + (selectedGPU?.id ?? "unavailable")
+        if lastGPUIdentity != identity {
+            gpuHistory = []
+            lastGPUIdentity = identity
+        }
+        if fresh.has(.gpus), let gpu = selectedGPU,
+           let utilization = fresh.gpus.first(where: { $0.id == gpu.id })?.utilization {
+            append(utilization, to: &gpuHistory)
+        } else {
+            // A gap must not appear as idle GPU activity or a continuous fresh trace.
+            gpuHistory = []
+        }
         if lastCPUSource != preferences.values.cpuSource {
             cpuHistory = Array(repeating: 0, count: 60)
             lastCPUSource = preferences.values.cpuSource
@@ -672,6 +704,31 @@ final class MonitorStore: ObservableObject {
                       now - completed <= lifetime {
                 copy(&merged, previous)
                 merged.validFields.insert(field)
+            }
+        }
+        retain(.gpus) { output, old in output.gpus = old.gpus }
+        if sampled.has(.gpus) {
+            let ids = Set(sampled.gpus.map(\.id))
+            gpuLastSuccess = gpuLastSuccess.filter { ids.contains($0.key) }
+        }
+        if merged.has(.gpus) {
+            merged.gpus = merged.gpus.map { gpu in
+                let fresh = sampled.gpus.first { $0.id == gpu.id }
+                let old = previous.gpus.first { $0.id == gpu.id }
+                @MainActor func recent<T>(_ key: String, _ value: T?, _ previousValue: T?) -> T? {
+                    if let value {
+                        gpuLastSuccess[gpu.id, default: [:]][key] = now
+                        return value
+                    }
+                    guard lifetime > 0, let last = gpuLastSuccess[gpu.id]?[key], now - last <= lifetime else { return nil }
+                    return previousValue
+                }
+                return GPUUsage(id: gpu.id, name: gpu.name,
+                                utilization: recent("usage", fresh?.utilization, old?.utilization),
+                                renderer: recent("renderer", fresh?.renderer, old?.renderer),
+                                tiler: recent("tiler", fresh?.tiler, old?.tiler),
+                                memoryUsed: recent("memory", fresh?.memoryUsed, old?.memoryUsed),
+                                coreCount: recent("cores", fresh?.coreCount, old?.coreCount))
             }
         }
         retain(.cpu) { output, old in

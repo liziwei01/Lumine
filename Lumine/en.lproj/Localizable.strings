@@ -326,3 +326,14 @@
 "请检查 Lumine 的完全磁盘访问权限。" = "Check Lumine's Full Disk Access permission.";
 "悬停泛白" = "Hover whitening";
 "选中泛蓝" = "Selected blue tint";
+
+/* GPU monitoring */
+"查看 GPU 详情" = "View GPU details";
+"自动选择" = "Automatic";
+"渲染" = "Render";
+"平铺" = "Tiler";
+"GPU 已用内存" = "GPU memory used";
+"GPU 核心" = "GPU cores";
+"驱动报告的系统内存用量，包含共享内存。" = "System memory reported by the driver, including shared memory.";
+"驱动未提供的指标显示为不可用。" = "Metrics unavailable from the driver are shown as unavailable.";
+"渲染和平铺是独立引擎负载，不能相加。" = "Render and tiler loads are independent and cannot be added.";

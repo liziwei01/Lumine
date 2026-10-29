@@ -34,6 +34,7 @@ struct DetailView: View {
                 case .memory: memoryContent
                 case .battery: batteryContent
                 case .cpu: cpuContent
+                case .gpu: gpuContent
                 case .network: networkContent
                 case .devices: devicesContent
                 }
@@ -144,6 +145,7 @@ struct DetailView: View {
         case .memory: L10n.tr("内存")
         case .battery: L10n.tr("电池")
         case .cpu: m.cpuName
+        case .gpu: "GPU"
         case .network: L10n.tr("网络")
         case .devices: L10n.tr("已连接的设备")
         }
@@ -390,6 +392,68 @@ struct DetailView: View {
         case .warning: Palette.yellow
         case .critical: Palette.coral
         case .unavailable: Palette.muted
+        }
+    }
+
+    private var gpuContent: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            Picker("GPU", selection: Binding(
+                get: { preferences.values.gpuSource },
+                set: { preferences.values.gpuSource = $0; store.gpuSourceChanged() }
+            )) {
+                Text(L10n.tr("自动选择")).tag("auto")
+                ForEach(m.gpus) { gpu in Text(gpu.name).tag(gpu.id) }
+                if preferences.values.gpuSource != "auto", !m.gpus.contains(where: { $0.id == preferences.values.gpuSource }) {
+                    Text(L10n.tr("不可用")).tag(preferences.values.gpuSource)
+                }
+            }
+            if let gpu = store.selectedGPU {
+                Text(gpu.name).font(.system(size: 15, weight: .semibold))
+            }
+            if shows(.gpuChart) {
+                HStack(alignment: .top, spacing: 18) {
+                    HistoryChart(primary: store.gpuHistory, secondary: nil, primaryColor: Palette.blue, secondaryColor: Palette.coral, ceiling: 100)
+                        .frame(height: 134)
+                        .overlay {
+                            if store.selectedGPU?.utilization == nil { Text(L10n.tr("不可用")).foregroundStyle(Palette.muted) }
+                        }
+                    VStack(alignment: .leading, spacing: 15) {
+                        legend(L10n.tr("使用率"), color: Palette.blue, value: store.selectedGPU?.utilization.map(MetricFormat.percent) ?? L10n.tr("不可用"))
+                        legend(L10n.tr("渲染"), color: Palette.coral, value: store.selectedGPU?.renderer.map(MetricFormat.percent) ?? L10n.tr("不可用"))
+                        legend(L10n.tr("平铺"), color: Palette.cyan, value: store.selectedGPU?.tiler.map(MetricFormat.percent) ?? L10n.tr("不可用"))
+                    }
+                    .frame(width: 98, alignment: .leading)
+                }
+            }
+            if shows(.gpuMemory) || shows(.gpuCores) {
+                HStack(spacing: 10) {
+                    if shows(.gpuMemory) {
+                        MetricCard(selected: false) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label(L10n.tr("GPU 已用内存"), systemImage: "memorychip").font(.system(size: 13, weight: .bold))
+                                Text(store.selectedGPU?.memoryUsed.map { MetricFormat.bytes(Double($0)) } ?? L10n.tr("不可用"))
+                                    .font(.system(size: 24, weight: .semibold)).foregroundStyle(Palette.yellow)
+                                Text(L10n.tr("驱动报告的系统内存用量，包含共享内存。"))
+                                    .font(.system(size: 11)).foregroundStyle(Palette.muted)
+                            }
+                        }
+                    }
+                    if shows(.gpuCores) {
+                        MetricCard(selected: false, tone: 1) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label(L10n.tr("GPU 核心"), systemImage: "cpu").font(.system(size: 13, weight: .bold))
+                                Text(store.selectedGPU?.coreCount.map { String($0) } ?? L10n.tr("不可用"))
+                                    .font(.system(size: 24, weight: .semibold)).foregroundStyle(Palette.cyan)
+                                Text(L10n.tr("驱动未提供的指标显示为不可用。"))
+                                    .font(.system(size: 11)).foregroundStyle(Palette.muted)
+                            }
+                        }
+                    }
+                }
+                .frame(height: 142)
+            }
+            Text(L10n.tr("渲染和平铺是独立引擎负载，不能相加。"))
+                .font(.system(size: 11)).foregroundStyle(Palette.muted)
         }
     }
 

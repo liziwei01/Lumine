@@ -177,6 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let hasRow2 = preferences.shows(.overviewBattery) || preferences.shows(.overviewCPU)
         let hasRow3 = preferences.shows(.overviewNetwork) || preferences.shows(.overviewDevices)
         var overviewHeight: CGFloat = 420
+        if preferences.shows(.overviewGPU) { overviewHeight += 68 }
         if !preferences.shows(.health) { overviewHeight -= 56 }
         if !hasRow1 { overviewHeight -= 88 }
         if !hasRow2 { overviewHeight -= 68 }
@@ -207,6 +208,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if !preferences.shows(.cpuChart) { height -= 160 }
                 if !preferences.shows(.cpuUptime) && !preferences.shows(.cpuTemperature) { height -= 142 }
                 if !preferences.shows(.cpuProcesses) { height -= 225 }
+            case .gpu:
+                height = 485
+                if !preferences.shows(.gpuChart) { height -= 156 }
+                if !preferences.shows(.gpuMemory) && !preferences.shows(.gpuCores) { height -= 164 }
             case .network:
                 height = 615
                 if !preferences.shows(.networkConnection) { height -= 132 }

@@ -66,11 +66,13 @@ struct PanelPosition: Codable, Hashable {
 enum Widget: String, CaseIterable, Identifiable {
     case health = "health"
     case overviewDisk = "overview.disk", overviewMemory = "overview.memory", overviewBattery = "overview.battery"
+    case overviewGPU = "overview.gpu"
     case overviewCPU = "overview.cpu", overviewNetwork = "overview.network", overviewDevices = "overview.devices"
     case diskCategories = "disk.categories", diskHealth = "disk.health", diskTemperature = "disk.temperature"
     case diskTrash = "disk.trash", diskCapacity = "disk.capacity", diskExternal = "disk.external"
     case memoryPressure = "memory.pressure", memorySwap = "memory.swap", memoryProcesses = "memory.processes"
     case batteryHealth = "battery.health", batteryTemperature = "battery.temperature", batteryCycles = "battery.cycles", batteryProcesses = "battery.processes"
+    case gpuChart = "gpu.chart", gpuMemory = "gpu.memory", gpuCores = "gpu.cores"
     case cpuChart = "cpu.chart", cpuUptime = "cpu.uptime", cpuTemperature = "cpu.temperature", cpuProcesses = "cpu.processes"
     case networkConnection = "network.connection", networkDownload = "network.download", networkUpload = "network.upload", networkSpeedTest = "network.speedtest"
     case devicesExternal = "devices.external"
@@ -83,6 +85,7 @@ struct PreferencesData: Codable {
     var theme = ThemeConfiguration.reference
     var allowDragging = false
     var panelPositions: [String: PanelPosition] = [:]
+    var gpuSource = "auto"
     var cpuSource = "overall"
     var temperatureSource = "average"
     var networkInterface = "auto"
@@ -100,7 +103,7 @@ struct PreferencesData: Codable {
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case theme, allowDragging, panelPositions, cpuSource, temperatureSource
+        case theme, allowDragging, panelPositions, gpuSource, cpuSource, temperatureSource
         case networkInterface, diskSource, memorySource, activeSamplingInterval, idleSamplingInterval, failedSampleRetentionSeconds, trafficWindowMinutes, language, widgetVisibility
     }
 
@@ -110,6 +113,7 @@ struct PreferencesData: Codable {
         if theme.selection.uppercased() == "#637CFF" { theme.selection = ThemeConfiguration.reference.selection }
         allowDragging = try values.decodeIfPresent(Bool.self, forKey: .allowDragging) ?? false
         panelPositions = try values.decodeIfPresent([String: PanelPosition].self, forKey: .panelPositions) ?? [:]
+        gpuSource = try values.decodeIfPresent(String.self, forKey: .gpuSource) ?? "auto"
         cpuSource = try values.decodeIfPresent(String.self, forKey: .cpuSource) ?? "overall"
         temperatureSource = try values.decodeIfPresent(String.self, forKey: .temperatureSource) ?? "average"
         networkInterface = try values.decodeIfPresent(String.self, forKey: .networkInterface) ?? "auto"

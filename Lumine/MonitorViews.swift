@@ -261,6 +261,13 @@ struct OverviewView: View {
                         }
                     }
                 }
+                if shows(.overviewGPU) {
+                    overviewButton(.gpu, height: 56, tone: 0.5) {
+                        cardHeader("display", "GPU", trailing: store.selectedGPU?.utilization.map(MetricFormat.percent) ?? L10n.tr("不可用"))
+                        Text(store.selectedGPU?.name ?? L10n.tr("不可用"))
+                            .font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
+                    }
+                }
                 HStack(alignment: .top, spacing: 10) {
                     if shows(.overviewNetwork) {
                         networkOverviewCard
@@ -349,6 +356,7 @@ struct OverviewView: View {
         case .memory: L10n.tr("查看内存详情")
         case .battery: L10n.tr("查看电池详情")
         case .cpu: L10n.tr("查看 CPU 详情")
+        case .gpu: L10n.tr("查看 GPU 详情")
         case .network: L10n.tr("查看网络详情")
         case .devices: L10n.tr("查看已连接设备")
         }

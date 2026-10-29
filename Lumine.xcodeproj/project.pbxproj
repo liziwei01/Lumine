@@ -6,6 +6,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        100000000000000000000118 /* GPUMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000227 /* GPUMetrics.swift */; };
 		100000000000000000000101 /* LumineApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000201 /* LumineApp.swift */; };
 		100000000000000000000102 /* SystemMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000202 /* SystemMetrics.swift */; };
 		100000000000000000000103 /* MonitorViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000203 /* MonitorViews.swift */; };
@@ -26,6 +27,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+        100000000000000000000227 /* GPUMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUMetrics.swift; sourceTree = "<group>"; };
 		100000000000000000000201 /* LumineApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LumineApp.swift; sourceTree = "<group>"; };
 		100000000000000000000202 /* SystemMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMetrics.swift; sourceTree = "<group>"; };
 		100000000000000000000203 /* MonitorViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorViews.swift; sourceTree = "<group>"; };
@@ -59,7 +61,7 @@
 
 /* Begin PBXGroup section */
 		100000000000000000000401 = {isa = PBXGroup; children = (100000000000000000000402 /* Lumine */, 100000000000000000000211 /* LICENSE */, 100000000000000000000212 /* THIRD_PARTY_NOTICES.md */, 100000000000000000000403 /* Products */); sourceTree = "<group>"; };
-		100000000000000000000402 /* Lumine */ = {isa = PBXGroup; children = (100000000000000000000201 /* LumineApp.swift */, 100000000000000000000202 /* SystemMetrics.swift */, 100000000000000000000213 /* DiskCategories.swift */, 100000000000000000000214 /* DiskSupplement.swift */, 100000000000000000000215 /* NetworkActions.swift */, 100000000000000000000216 /* Localization.swift */, 100000000000000000000203 /* MonitorViews.swift */, 100000000000000000000204 /* DetailView.swift */, 100000000000000000000208 /* Preferences.swift */, 100000000000000000000209 /* SettingsView.swift */, 100000000000000000000210 /* SMCReader.swift */, 100000000000000000000225 /* HIDTemperatureReader.swift */, 100000000000000000000226 /* TemperatureStatus.swift */, 100000000000000000000217 /* Localizable.strings */, 100000000000000000000205 /* Info.plist */, 100000000000000000000207 /* Assets.xcassets */); path = Lumine; sourceTree = "<group>"; };
+		100000000000000000000402 /* Lumine */ = {isa = PBXGroup; children = (100000000000000000000227 /* GPUMetrics.swift */, 100000000000000000000201 /* LumineApp.swift */, 100000000000000000000202 /* SystemMetrics.swift */, 100000000000000000000213 /* DiskCategories.swift */, 100000000000000000000214 /* DiskSupplement.swift */, 100000000000000000000215 /* NetworkActions.swift */, 100000000000000000000216 /* Localization.swift */, 100000000000000000000203 /* MonitorViews.swift */, 100000000000000000000204 /* DetailView.swift */, 100000000000000000000208 /* Preferences.swift */, 100000000000000000000209 /* SettingsView.swift */, 100000000000000000000210 /* SMCReader.swift */, 100000000000000000000225 /* HIDTemperatureReader.swift */, 100000000000000000000226 /* TemperatureStatus.swift */, 100000000000000000000217 /* Localizable.strings */, 100000000000000000000205 /* Info.plist */, 100000000000000000000207 /* Assets.xcassets */); path = Lumine; sourceTree = "<group>"; };
 		100000000000000000000217 /* Localizable.strings */ = {isa = PBXVariantGroup; children = (100000000000000000000218 /* zh-Hans */, 100000000000000000000219 /* zh-Hant */, 100000000000000000000220 /* en */, 100000000000000000000221 /* ja */, 100000000000000000000222 /* ru */, 100000000000000000000223 /* ko */, 100000000000000000000224 /* es */); name = Localizable.strings; sourceTree = "<group>"; };
 		100000000000000000000403 /* Products */ = {isa = PBXGroup; children = (100000000000000000000206 /* Lumine.app */); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
@@ -77,7 +79,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		100000000000000000000302 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (100000000000000000000101 /* LumineApp.swift in Sources */, 100000000000000000000102 /* SystemMetrics.swift in Sources */, 100000000000000000000111 /* DiskCategories.swift in Sources */, 100000000000000000000112 /* DiskSupplement.swift in Sources */, 100000000000000000000113 /* NetworkActions.swift in Sources */, 100000000000000000000114 /* Localization.swift in Sources */, 100000000000000000000103 /* MonitorViews.swift in Sources */, 100000000000000000000104 /* DetailView.swift in Sources */, 100000000000000000000106 /* Preferences.swift in Sources */, 100000000000000000000107 /* SettingsView.swift in Sources */, 100000000000000000000108 /* SMCReader.swift in Sources */, 100000000000000000000116 /* HIDTemperatureReader.swift in Sources */, 100000000000000000000117 /* TemperatureStatus.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+		100000000000000000000302 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (100000000000000000000118 /* GPUMetrics.swift in Sources */, 100000000000000000000101 /* LumineApp.swift in Sources */, 100000000000000000000102 /* SystemMetrics.swift in Sources */, 100000000000000000000111 /* DiskCategories.swift in Sources */, 100000000000000000000112 /* DiskSupplement.swift in Sources */, 100000000000000000000113 /* NetworkActions.swift in Sources */, 100000000000000000000114 /* Localization.swift in Sources */, 100000000000000000000103 /* MonitorViews.swift in Sources */, 100000000000000000000104 /* DetailView.swift in Sources */, 100000000000000000000106 /* Preferences.swift in Sources */, 100000000000000000000107 /* SettingsView.swift in Sources */, 100000000000000000000108 /* SMCReader.swift in Sources */, 100000000000000000000116 /* HIDTemperatureReader.swift in Sources */, 100000000000000000000117 /* TemperatureStatus.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
