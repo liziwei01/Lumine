@@ -4,8 +4,3 @@ dist/
 *.xcuserstate
 **/xcuserdata/
 截屏*.png
-**/bin/
-**/obj/
-lumine-smoke*.json
-lumine-smoke-error.txt
-lumine-windows.png
