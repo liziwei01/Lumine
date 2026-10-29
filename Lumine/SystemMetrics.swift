@@ -34,7 +34,7 @@ struct ExternalVolume: Identifiable {
 enum MetricField: Hashable {
     case gpus
     case deviceName, volumeName, cpu, cores, cpuTemperature, memory, swap, disk, externalVolumes
-    case batteryPower, batteryMinutes, batteryCycles, batteryDesignCycles, batteryHealth, batteryTemperature
+    case memoryPressure, batteryPower, batteryMinutes, batteryCycles, batteryDesignCycles, batteryHealth, batteryTemperature
     case network, networkName, networkSecurity, processes, uptime
 }
 
@@ -52,6 +52,7 @@ struct SystemMetrics {
     var memoryActive: UInt64 = 0
     var memoryWired: UInt64 = 0
     var memoryCompressed: UInt64 = 0
+    var memoryPressureLevel: Int32?
     var swapUsed: UInt64 = 0
     var cpuTotal: Double = 0
     var cpuUser: Double = 0
@@ -81,7 +82,7 @@ struct SystemMetrics {
 
     var memoryUsed: UInt64 { memoryTotal > memoryFree ? memoryTotal - memoryFree : 0 }
     var memoryPressureEstimate: Double {
-        memoryTotal > 0 ? min(100, Double(memoryUsed) / Double(memoryTotal) * 100) : 0
+        memoryTotal > 0 ? min(100, (Double(memoryWired) + Double(memoryCompressed)) / Double(memoryTotal) * 100) : 0
     }
 
     func has(_ field: MetricField) -> Bool { validFields.contains(field) }
@@ -124,8 +125,12 @@ final class SystemSampler: @unchecked Sendable {
             result.gpus = gpus
             result.validFields.insert(.gpus)
         }
+        // Measure a fresh one-second window, including on the first sample or after idle.
+        previousCPU = nil
+        previousCoreCounters = []
         sampleCPU(into: &result)
         sampleCores(into: &result)
+        let cpuWindowStart = ProcessInfo.processInfo.systemUptime
         if result.cpuName.contains("Apple M") {
             if hidTemperatureReader == nil && result.uptime >= nextHIDAttempt {
                 hidTemperatureReader = HIDTemperatureReader()
@@ -154,6 +159,11 @@ final class SystemSampler: @unchecked Sendable {
                 }
             }
         }
+        let remaining = 1 - (ProcessInfo.processInfo.systemUptime - cpuWindowStart)
+        if remaining > 0 { Thread.sleep(forTimeInterval: remaining) }
+        result.cpuCores = []
+        sampleCPU(into: &result)
+        sampleCores(into: &result)
         return result
     }
 
@@ -185,10 +195,10 @@ final class SystemSampler: @unchecked Sendable {
             nice: UInt64(info.cpu_ticks.3)
         )
         if let previousCPU {
-            let user = Double(current.user &- previousCPU.user)
-            let system = Double(current.system &- previousCPU.system)
-            let idle = Double(current.idle &- previousCPU.idle)
-            let nice = Double(current.nice &- previousCPU.nice)
+            let user = Double(UInt32(truncatingIfNeeded: current.user) &- UInt32(truncatingIfNeeded: previousCPU.user))
+            let system = Double(UInt32(truncatingIfNeeded: current.system) &- UInt32(truncatingIfNeeded: previousCPU.system))
+            let idle = Double(UInt32(truncatingIfNeeded: current.idle) &- UInt32(truncatingIfNeeded: previousCPU.idle))
+            let nice = Double(UInt32(truncatingIfNeeded: current.nice) &- UInt32(truncatingIfNeeded: previousCPU.nice))
             let total = user + system + idle + nice
             if total > 0 {
                 result.cpuUser = (user + nice) / total * 100
@@ -225,10 +235,10 @@ final class SystemSampler: @unchecked Sendable {
             var usage = CoreUsage(index: index, total: 0, user: 0, system: 0)
             if index < previousCoreCounters.count {
                 let prior = previousCoreCounters[index]
-                let user = Double(current.user &- prior.user)
-                let system = Double(current.system &- prior.system)
-                let idle = Double(current.idle &- prior.idle)
-                let nice = Double(current.nice &- prior.nice)
+                let user = Double(UInt32(truncatingIfNeeded: current.user) &- UInt32(truncatingIfNeeded: prior.user))
+                let system = Double(UInt32(truncatingIfNeeded: current.system) &- UInt32(truncatingIfNeeded: prior.system))
+                let idle = Double(UInt32(truncatingIfNeeded: current.idle) &- UInt32(truncatingIfNeeded: prior.idle))
+                let nice = Double(UInt32(truncatingIfNeeded: current.nice) &- UInt32(truncatingIfNeeded: prior.nice))
                 let sum = user + system + idle + nice
                 if sum > 0 {
                     usage = CoreUsage(index: index, total: (user + system + nice) / sum * 100, user: (user + nice) / sum * 100, system: system / sum * 100)
@@ -262,6 +272,14 @@ final class SystemSampler: @unchecked Sendable {
             let freePages = UInt64(info.free_count) + UInt64(info.inactive_count) + UInt64(info.speculative_count)
             result.memoryFree = min(result.memoryTotal, freePages * pageSize)
             result.validFields.insert(.memory)
+        }
+
+        var pressure: Int32 = 0
+        var pressureSize = MemoryLayout<Int32>.size
+        if sysctlbyname("kern.memorystatus_vm_pressure_level", &pressure, &pressureSize, nil, 0) == 0,
+           [1, 2, 4].contains(pressure) {
+            result.memoryPressureLevel = pressure
+            result.validFields.insert(.memoryPressure)
         }
 
         var usage = xsw_usage()
@@ -737,6 +755,7 @@ final class MonitorStore: ObservableObject {
         retain(.deviceName) { output, old in output.deviceName = old.deviceName }
         retain(.volumeName) { output, old in output.volumeName = old.volumeName }
         retain(.cores) { output, old in output.cpuCores = old.cpuCores }
+        retain(.memoryPressure) { output, old in output.memoryPressureLevel = old.memoryPressureLevel }
         retain(.memory) { output, old in
             output.memoryTotal = old.memoryTotal; output.memoryFree = old.memoryFree
             output.memoryImmediatelyFree = old.memoryImmediatelyFree; output.memoryActive = old.memoryActive

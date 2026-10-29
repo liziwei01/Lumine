@@ -54,8 +54,8 @@ LumineApp / AppDelegate
 | 指标 | 来源 | 说明 |
 | --- | --- | --- |
 | GPU | IORegistry 的 `IOAccelerator`、`PerformanceStatistics` | 每个驱动实例独立采样设备使用率、渲染/平铺负载、已用系统内存与核心数；字段可选，不推算温度或进程排行。使用注册表路径保存设备选择，切换设备或采样缺口时清空图表；缺失字段按同一设备和字段保留至超时，设备移除立即更新。共享内存不等于独立显存，渲染/平铺负载不能相加。 |
-| CPU 使用率 | `host_statistics(HOST_CPU_LOAD_INFO)`、`host_processor_info(PROCESSOR_CPU_LOAD_INFO)` | 相邻采样 tick 差值；可选总体平均或各逻辑核心。 |
-| 内存 | `host_statistics64(HOST_VM_INFO64)`、`ProcessInfo.physicalMemory` | 活跃、联动、压缩、空闲/非活跃内存；压力以已用物理内存占比近似，不冒充系统内存压力通知。 |
+| CPU 使用率 | `host_statistics(HOST_CPU_LOAD_INFO)`、`host_processor_info(PROCESSOR_CPU_LOAD_INFO)` | 每次采集内独立的至少一秒 tick 差值，不混入关闭面板时的长周期；32 位计数器按 32 位回绕处理。可选总体平均或各逻辑核心。 |
+| 内存 | `host_statistics64(HOST_VM_INFO64)`、`ProcessInfo.physicalMemory` | 活跃、联动、压缩、空闲/非活跃内存；压力百分比以（联动 + 压缩）/物理内存估算；提示优先读取内核 `kern.memorystatus_vm_pressure_level`，独立缓存及失效。 |
 | 磁盘容量 | `URLResourceValues.volumeAvailableCapacityForImportantUsage`、`volumeTotalCapacity` | 卷的总量和可用量。 |
 | 文件类别 | `FileManager.enumerator`、`totalFileAllocatedSizeKey` | 用户点击后才后台遍历所选卷，逐卷持久化已完成结果；详情打开时只读取缓存和当前进度。 |
 | 磁盘运行状况/温度 | 系统 `diskutil info -plist` SMART 字段 | 仅在磁盘详情打开时读取并缓存；健康百分比是剩余寿命估算，不保证与 CleanMyMac 算法完全一致。 |
@@ -68,7 +68,7 @@ LumineApp / AppDelegate
 
 Apple Silicon 上 CPU 温度没有稳定公开的无特权 API。CleanMyMac 的公开文档确认非 App Store 版本可显示温度，但未公开实现；开源监控工具使用 SMC/HID 传感器。Lumine 在采样队列上创建并复用只读 HID 客户端；HID 无有效 CPU 温度时每 30 秒尝试 SMC 后备，避免在主线程创建 SMC 连接后跨线程读取。两路都没有有效温度时，短暂失败显示同一传感器仍在保留期内的真实旧读数，过期后显示不可用，不显示虚构温度。电池健康度是容量比例的估算值，与 macOS 设置中的健康状态判断不完全相同。
 
-参考文案与阈值依据：MacPaw 官方的[磁盘空间](https://macpaw.com/support/cleanmymac/knowledgebase/available-disk-space)、[磁盘健康](https://macpaw.com/support/cleanmymac/knowledgebase/disk-health)、[磁盘温度](https://macpaw.com/support/cleanmymac/knowledgebase/disk-temperature)、[内存压力](https://macpaw.com/support/cleanmymac/knowledgebase/ram-pressure)、[电池健康](https://macpaw.com/support/cleanmymac/knowledgebase/battery-health)、[电池温度](https://macpaw.com/support/cleanmymac/knowledgebase/battery-temperature)、[CPU 温度](https://macpaw.com/support/cleanmymac/knowledgebase/cpu-temperature)、[运行时间](https://macpaw.com/support/cleanmymac/knowledgebase/mac-uptime)和[网络安全](https://macpaw.com/support/cleanmymac/knowledgebase/network-connection-security)页面。Lumine 不复用第三方图片或原文段落。“了解更多”按组件主题指向这些官方页面。内存压力百分比是 Lumine 的物理页估算，无法声称与 CleanMyMac 的私有算法相同；总览健康描述也只覆盖本项目实际采集到的指标。
+参考文案与阈值依据：MacPaw 官方的[磁盘空间](https://macpaw.com/support/cleanmymac/knowledgebase/available-disk-space)、[磁盘健康](https://macpaw.com/support/cleanmymac/knowledgebase/disk-health)、[磁盘温度](https://macpaw.com/support/cleanmymac/knowledgebase/disk-temperature)、[内存压力](https://macpaw.com/support/cleanmymac/knowledgebase/ram-pressure)、[电池健康](https://macpaw.com/support/cleanmymac/knowledgebase/battery-health)、[电池温度](https://macpaw.com/support/cleanmymac/knowledgebase/battery-temperature)、[CPU 温度](https://macpaw.com/support/cleanmymac/knowledgebase/cpu-temperature)、[运行时间](https://macpaw.com/support/cleanmymac/knowledgebase/mac-uptime)和[网络安全](https://macpaw.com/support/cleanmymac/knowledgebase/network-connection-security)页面。Lumine 不复用第三方图片或原文段落。“了解更多”按组件主题指向这些官方页面。内存压力百分比是 Lumine 的联动与压缩页估算，无法声称与 CleanMyMac 的私有算法相同；总览健康描述也只覆盖本项目实际采集到的指标。
 
 ## 窗口与交互
 
@@ -91,3 +91,5 @@ Apple Silicon 上 CPU 温度没有稳定公开的无特权 API。CleanMyMac 的�
 ## 工程与验证
 
 工程是无第三方依赖的 Swift / SwiftUI / AppKit Xcode 项目。最低 macOS 13；默认不启用沙盒或请求额外权限。通过 `xcodebuild` 编译、运行 App 并检查实际窗口和采样数值。公开 Git 仓库是外层工作区中的 `lumine/` 子目录；外层保留参考截图、构建产物与个人文件。只发布原创代码与原创图标，不把参考截图或第三方品牌素材放入发布包。
+
+废纸篓访问失败时提供 NSOpenPanel 文件夹授权及完全磁盘访问设置入口。仅接受当前卷预期废纸篓路径，安全作用域书签在本机保存，读写期间成对开启及关闭作用域；仍受 macOS 权限检查约束。读取失败不得借助 `fileExists` 推断为空或清空成功。

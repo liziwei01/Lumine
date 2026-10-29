@@ -236,6 +236,20 @@ struct DetailView: View {
                             if let notice = diskSupplement.trashNotice {
                                 Text(notice).font(.system(size: 10)).foregroundStyle(Palette.muted).lineLimit(1)
                             }
+                            if !diskSupplement.trashRootReadable && !diskSupplement.isLoading {
+                                Button(L10n.tr("授权访问…")) {
+                                    diskSupplement.authorizeTrash(path: selectedDiskPath)
+                                }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Palette.cyan)
+                                Button(L10n.tr("磁盘权限")) {
+                                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!)
+                                }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 11))
+                                .foregroundStyle(Palette.muted)
+                            }
                             Spacer(minLength: 0)
                             Button(diskSupplement.isEmptyingTrash ? L10n.tr("正在清空…") : L10n.tr("释放")) {
                                 pendingTrashPath = selectedDiskPath
@@ -312,8 +326,8 @@ struct DetailView: View {
     private var memoryPressureMessage: String {
         guard m.has(.memory) else { return L10n.tr("不可用") }
         let pressure = m.memoryPressureEstimate
-        if pressure >= 90 { return L10n.tr("内存压力估算已达临界，建议关闭占用较高的应用。") }
-        if pressure >= 70 { return L10n.tr("考虑退出暂不使用的应用，减轻内存压力。") }
+        if m.memoryPressureLevel == 4 || (m.memoryPressureLevel == nil && pressure >= 90) { return L10n.tr("内存压力估算已达临界，建议关闭占用较高的应用。") }
+        if m.memoryPressureLevel == 2 || (m.memoryPressureLevel == nil && pressure >= 70) { return L10n.tr("考虑退出暂不使用的应用，减轻内存压力。") }
         return L10n.tr("当前内存压力估算正常。")
     }
 

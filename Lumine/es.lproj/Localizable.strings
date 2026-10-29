@@ -337,3 +337,7 @@
 "驱动报告的系统内存用量，包含共享内存。" = "Memoria del sistema indicada por el controlador, incluida la compartida.";
 "驱动未提供的指标显示为不可用。" = "Las métricas no proporcionadas por el controlador no están disponibles.";
 "渲染和平铺是独立引擎负载，不能相加。" = "Las cargas de renderizado y mosaicos son independientes y no se suman.";
+
+"授权访问…" = "Permitir acceso…";
+"磁盘权限" = "Acceso al disco";
+"请选择当前用户的废纸篓文件夹以授权访问。" = "Selecciona la carpeta Papelera del usuario actual para permitir el acceso.";

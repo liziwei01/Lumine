@@ -337,3 +337,7 @@
 "驱动报告的系统内存用量，包含共享内存。" = "System memory reported by the driver, including shared memory.";
 "驱动未提供的指标显示为不可用。" = "Metrics unavailable from the driver are shown as unavailable.";
 "渲染和平铺是独立引擎负载，不能相加。" = "Render and tiler loads are independent and cannot be added.";
+
+"授权访问…" = "Allow Access…";
+"磁盘权限" = "Disk Access";
+"请选择当前用户的废纸篓文件夹以授权访问。" = "Select the current user’s Trash folder to allow access.";

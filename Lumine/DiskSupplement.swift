@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 
@@ -99,15 +100,31 @@ enum DiskSupplementCollector {
             .appendingPathComponent(".Trashes/\(getuid())", isDirectory: true)
     }
 
+    private static func authorizedTrashURL(path: String) -> URL {
+        let expected = trashURL(path: path)
+        guard let data = UserDefaults.standard.data(forKey: "trashBookmark:" + path) else { return expected }
+        var stale = false
+        guard let url = try? URL(resolvingBookmarkData: data, options: [.withSecurityScope, .withoutUI],
+                                 bookmarkDataIsStale: &stale),
+              url.standardizedFileURL == expected.standardizedFileURL else { return expected }
+        return url
+    }
+
     static func trash(path: String, cancelled: () -> Bool) -> TrashUsage {
-        let trashURL = trashURL(path: path)
+        let trashURL = authorizedTrashURL(path: path)
+        let scoped = trashURL.startAccessingSecurityScopedResource()
+        defer { if scoped { trashURL.stopAccessingSecurityScopedResource() } }
+        return scanTrash(at: trashURL, cancelled: cancelled)
+    }
+
+    static func scanTrash(at trashURL: URL, cancelled: () -> Bool) -> TrashUsage {
         var result = TrashUsage()
         let contents: [URL]
         do {
             contents = try FileManager.default.contentsOfDirectory(at: trashURL, includingPropertiesForKeys: nil)
         } catch {
             let failure = error as NSError
-            if failure.domain == NSCocoaErrorDomain && failure.code == NSFileReadNoSuchFileError {
+            if failure.domain == NSCocoaErrorDomain && [NSFileReadNoSuchFileError, NSFileNoSuchFileError].contains(failure.code) {
                 result.isAccessible = true
                 result.isComplete = true
             }
@@ -144,10 +161,23 @@ enum DiskSupplementCollector {
         return result
     }
 
+    static func emptyTrash(path: String) -> TrashEmptyResult {
+        let url = authorizedTrashURL(path: path)
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        return emptyTrash(at: url)
+    }
+
     static func emptyTrash(at trashURL: URL) -> TrashEmptyResult {
         var result = TrashEmptyResult()
-        guard let contents = try? FileManager.default.contentsOfDirectory(at: trashURL, includingPropertiesForKeys: nil) else {
-            result.failed = FileManager.default.fileExists(atPath: trashURL.path) ? 1 : 0
+        let contents: [URL]
+        do {
+            contents = try FileManager.default.contentsOfDirectory(at: trashURL, includingPropertiesForKeys: nil)
+        } catch {
+            let failure = error as NSError
+            // fileExists is also false on permission errors: never report those as success.
+            result.failed = failure.domain == NSCocoaErrorDomain &&
+                [NSFileReadNoSuchFileError, NSFileNoSuchFileError].contains(failure.code) ? 0 : 1
             return result
         }
         for item in contents {
@@ -317,14 +347,34 @@ final class DiskSupplementStore: ObservableObject {
         )
     }
 
+    func authorizeTrash(path: String) {
+        let expected = DiskSupplementCollector.trashURL(path: path)
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.showsHiddenFiles = true
+        panel.directoryURL = expected
+        panel.message = L10n.tr("请选择当前用户的废纸篓文件夹以授权访问。")
+        panel.begin { [weak self] response in
+            guard response == .OK, let url = panel.url,
+                  url.standardizedFileURL == expected.standardizedFileURL else { return }
+            if let bookmark = try? url.bookmarkData(options: .withSecurityScope,
+                                                   includingResourceValuesForKeys: nil, relativeTo: nil) {
+                UserDefaults.standard.set(bookmark, forKey: "trashBookmark:" + path)
+            }
+            guard let self else { return }
+            self.refresh(path: path, diagnostics: self.collectedDiagnostics, trash: true, force: true)
+        }
+    }
+
     func emptyTrash(path: String) {
         guard !isEmptyingTrash, !isLoading, rootPath == path,
               trashRootReadable, trash.itemCount > 0 else { return }
         isEmptyingTrash = true
         trashOutcome = nil
-        let url = DiskSupplementCollector.trashURL(path: path)
         Task.detached(priority: .utility) { [weak self] in
-            let outcome = DiskSupplementCollector.emptyTrash(at: url)
+            let outcome = DiskSupplementCollector.emptyTrash(path: path)
             let current = DiskSupplementCollector.trash(path: path, cancelled: { false })
             await MainActor.run { [weak self] in
                 guard let self else { return }
