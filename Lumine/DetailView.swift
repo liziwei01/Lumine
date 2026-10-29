@@ -78,6 +78,9 @@ struct DetailView: View {
                 diskSupplement.invalidateReadings()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            if kind == .disk { refreshDiskSupplement(path: selectedDiskPath, force: true) }
+        }
         .alert(L10n.tr("清空废纸篓？"), isPresented: $confirmEmptyTrash) {
             Button(L10n.tr("清空"), role: .destructive) {
                 let path = selectedDiskPath
@@ -243,12 +246,15 @@ struct DetailView: View {
                                 .buttonStyle(.plain)
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(Palette.cyan)
-                                Button(L10n.tr("磁盘权限")) {
-                                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!)
+                                .help(L10n.tr("在完全磁盘访问权限中添加并启用 Lumine，然后退出并重新打开 App。"))
+                                .contextMenu {
+                                    Button(L10n.tr("选择废纸篓文件夹…")) {
+                                        diskSupplement.chooseTrashFolder(path: selectedDiskPath)
+                                    }
+                                    Button(L10n.tr("在访达中显示 Lumine")) {
+                                        NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+                                    }
                                 }
-                                .buttonStyle(.plain)
-                                .font(.system(size: 11))
-                                .foregroundStyle(Palette.muted)
                             }
                             Spacer(minLength: 0)
                             Button(diskSupplement.isEmptyingTrash ? L10n.tr("正在清空…") : L10n.tr("释放")) {

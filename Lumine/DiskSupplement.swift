@@ -348,6 +348,16 @@ final class DiskSupplementStore: ObservableObject {
     }
 
     func authorizeTrash(path: String) {
+        let privacy = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
+        if !NSWorkspace.shared.open(privacy),
+           let settings = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.systempreferences") {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            NSWorkspace.shared.openApplication(at: settings, configuration: configuration)
+        }
+    }
+
+    func chooseTrashFolder(path: String) {
         let expected = DiskSupplementCollector.trashURL(path: path)
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true

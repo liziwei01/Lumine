@@ -341,3 +341,7 @@
 "授权访问…" = "Allow Access…";
 "磁盘权限" = "Disk Access";
 "请选择当前用户的废纸篓文件夹以授权访问。" = "Select the current user’s Trash folder to allow access.";
+
+"在完全磁盘访问权限中添加并启用 Lumine，然后退出并重新打开 App。" = "Add and enable Lumine in Full Disk Access, then quit and reopen the app.";
+"选择废纸篓文件夹…" = "Choose Trash Folder…";
+"在访达中显示 Lumine" = "Show Lumine in Finder";
