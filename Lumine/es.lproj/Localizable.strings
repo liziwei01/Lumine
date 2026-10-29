@@ -342,6 +342,6 @@
 "磁盘权限" = "Acceso al disco";
 "请选择当前用户的废纸篓文件夹以授权访问。" = "Selecciona la carpeta Papelera del usuario actual para permitir el acceso.";
 
-"在完全磁盘访问权限中添加并启用 Lumine，然后退出并重新打开 App。" = "Añade y activa Lumine en Acceso total al disco; después cierra y vuelve a abrir la app.";
+"在完全磁盘访问权限中添加并启用 Lumine，然后退出并重新打开 App。" = "Añade y activa Lumine en Acceso total al disco; después cierra y vuelve a abrir la app. Si tras actualizar no puede leer aunque el interruptor esté activado, elimina la entrada anterior y añade de nuevo la app actual.";
 "选择废纸篓文件夹…" = "Elegir carpeta Papelera…";
 "在访达中显示 Lumine" = "Mostrar Lumine en Finder";
